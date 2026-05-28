@@ -10,6 +10,8 @@ const DEFAULT_YEAR = 2026;
 const TEXT_COLUMNS = ['student_id', 'session_key'];
 const ALLOWED_STATUSES = ['attend', 'absent'];
 const SESSION_FIELDS = ['date', 'day', 'time', 'subject', 'teacher', 'type', 'classroom', 'notes', 'visible'];
+const INFO_ONLY_SESSION_KEYS = ['0725', '0726', '0727', '0728'];
+const HIGHLIGHT_ONLY_SESSION_KEYS = ['0726', '0727'];
 
 const DEFAULT_SESSIONS = [
   ['0630', '06/30', '二', '下午 13:00-16:00', '局部活動義齒技術學', '謝承勛', 'tutoring', 'C205 正課教室', '', true],
@@ -40,13 +42,8 @@ const DEFAULT_SESSIONS = [
   ['0728', '07/28', '二', '考後處理與討論', '返校疑議處理', '系上專業團隊', 'national_exam', '系辦公室', '對試題答案有疑慮者，請攜帶佐證資料到系辦公室填寫疑議表。', true],
 ];
 
-const DEFAULT_STUDENTS = [
-  ['115001', '張育誠', '115', '115級 (2026)', '在職專班'],
-  ['115002', '陳映婕', '115', '115級 (2026)', '五專部'],
-  ['115003', '林楷瀚', '115', '115級 (2026)', '在職專班'],
-  ['115004', '黃歆雅', '115', '115級 (2026)', '五專部'],
-  ['115005', '徐志傑', '115', '115級 (2026)', '在職專班'],
-];
+const DEFAULT_STUDENTS = [];
+// 預設測試學生名單已移除：新試算表只會建立欄位，不會自動產生測試學生。
 
 function doGet(e) {
   const params = e && e.parameter ? e.parameter : {};
@@ -74,6 +71,8 @@ function routeAction(params) {
       return updateAttendance(params.student_id, params.password, params.session_key, params.status);
     case 'updateAllAttendance':
       return updateAllAttendance(params.student_id, params.password);
+    case 'updateStudentProfile':
+      return updateStudentProfile(params);
     case 'adminLogin':
       verifyAdmin(params.password);
       return { authenticated: true };
@@ -100,7 +99,7 @@ function ensureSetup() {
   const sessions = getOrCreateSheet_(ss, SHEETS.SESSIONS, ['session_key', 'date', 'day', 'time', 'subject', 'teacher', 'type', 'classroom', 'notes', 'visible']);
   getOrCreateSheet_(ss, SHEETS.ATTENDANCE, ['student_id', 'session_key', 'status', 'updated_at']);
 
-  if (students.getLastRow() === 1) {
+  if (students.getLastRow() === 1 && DEFAULT_STUDENTS.length > 0) {
     const now = now_();
     students.getRange(2, 1, DEFAULT_STUDENTS.length, 7).setValues(
       DEFAULT_STUDENTS.map((student) => [student[0], student[1], hash_(student[2]), student[3], student[4], now, 'active'])
@@ -154,6 +153,9 @@ function updateAttendance(studentId, password, sessionKey, status) {
   if (!session.visible) {
     throw new Error('此課程目前未開放。');
   }
+  if (isInfoOnlySession_(session)) {
+    throw new Error('此日期只在月曆標記，不需要回覆參加 / 不參加。');
+  }
   if (!isEditableSession_(session)) {
     throw new Error('只能修改明天與未來課程。');
   }
@@ -163,10 +165,59 @@ function updateAttendance(studentId, password, sessionKey, status) {
 
 function updateAllAttendance(studentId, password) {
   const student = findActiveStudent_(studentId, password);
-  const updated = visibleSessions_().filter(isEditableSession_).map((session) => {
+  const updated = visibleSessions_().filter((session) => isEditableSession_(session) && !isInfoOnlySession_(session)).map((session) => {
     return upsertAttendance_(student.student_id, session.session_key, 'attend');
   });
   return { updated };
+}
+
+function updateStudentProfile(params) {
+  const currentPassword = String(params.password || '');
+  const student = findActiveStudent_(params.student_id, currentPassword);
+  const id = normalizeStudentId_(student.student_id);
+  const name = clean_(params.name);
+  const year = clean_(params.year);
+  const type = clean_(params.type);
+  const newPassword = String(params.new_password || '').trim();
+
+  if (!name) {
+    throw new Error('請填寫姓名。');
+  }
+  if (!year) {
+    throw new Error('請選擇畢業年份。');
+  }
+  if (!type) {
+    throw new Error('請選擇班別。');
+  }
+
+  const studentsSheet = sheet_(SHEETS.STUDENTS);
+  const values = studentsSheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  const idIndex = headers.indexOf('student_id');
+  const nameIndex = headers.indexOf('name');
+  const passwordIndex = headers.indexOf('password_hash');
+  const yearIndex = headers.indexOf('year');
+  const typeIndex = headers.indexOf('type');
+
+  if ([idIndex, nameIndex, passwordIndex, yearIndex, typeIndex].some((index) => index === -1)) {
+    throw new Error('Students 欄位設定不完整。');
+  }
+
+  for (let i = 1; i < values.length; i += 1) {
+    if (normalizeStudentId_(values[i][idIndex]) !== id) continue;
+
+    studentsSheet.getRange(i + 1, idIndex + 1).setValue(id);
+    studentsSheet.getRange(i + 1, nameIndex + 1).setValue(name);
+    studentsSheet.getRange(i + 1, yearIndex + 1).setValue(year);
+    studentsSheet.getRange(i + 1, typeIndex + 1).setValue(type);
+    if (newPassword) {
+      studentsSheet.getRange(i + 1, passwordIndex + 1).setValue(hash_(newPassword));
+    }
+
+    return loginStudent(id, newPassword || currentPassword);
+  }
+
+  throw new Error('找不到此學生。');
 }
 
 function adminSummary() {
@@ -192,6 +243,7 @@ function adminExportData() {
       student.year,
       student.type,
     ].concat(summary.sessions.map((session) => {
+      if (isInfoOnlySession_(session)) return '僅月曆標記';
       const found = session.attendance.find((item) => item.student_id === student.student_id);
       return statusLabel_(found ? found.status : 'absent');
     })));
@@ -201,7 +253,8 @@ function adminExportData() {
 }
 
 function summarizeSession_(session, students, attendance) {
-  const rows = students.map((student) => {
+  const infoOnly = isInfoOnlySession_(session);
+  const rows = infoOnly ? [] : students.map((student) => {
     const found = attendance.find((item) => item.student_id === student.student_id && item.session_key === session.session_key);
     return {
       student_id: student.student_id,
@@ -214,7 +267,9 @@ function summarizeSession_(session, students, attendance) {
   });
 
   return Object.assign({}, session, {
-    editable: isEditableSession_(session),
+    editable: infoOnly ? false : isEditableSession_(session),
+    attendance_required: !infoOnly,
+    special_highlight: isHighlightOnlySession_(session),
     attendance: rows,
     counts: {
       attend: rows.filter((row) => row.status === 'attend').length,
@@ -226,10 +281,13 @@ function summarizeSession_(session, students, attendance) {
 function sessionPayloadForStudent_(studentId) {
   const attendance = sheetObjects_(sheet_(SHEETS.ATTENDANCE)).filter((row) => row.student_id === studentId);
   return visibleSessions_().map((session) => {
+    const infoOnly = isInfoOnlySession_(session);
     const found = attendance.find((row) => row.session_key === session.session_key);
     return Object.assign({}, session, {
-      status: normalizeStatus_(found ? found.status : 'absent'),
-      editable: isEditableSession_(session),
+      status: infoOnly ? 'info' : normalizeStatus_(found ? found.status : 'absent'),
+      editable: infoOnly ? false : isEditableSession_(session),
+      attendance_required: !infoOnly,
+      special_highlight: isHighlightOnlySession_(session),
       is_tomorrow: isTomorrow_(session),
     });
   });
@@ -265,9 +323,17 @@ function findSession_(sessionKey) {
 
 function visibleSessions_() {
   return sheetObjects_(sheet_(SHEETS.SESSIONS))
-    .map((session) => Object.assign({}, session, { session_key: normalizeKey_(session.session_key) }))
+    .map(normalizeSession_)
     .filter((session) => session.visible === true || String(session.visible).toLowerCase() === 'true')
     .sort((a, b) => normalizeKey_(a.session_key).localeCompare(normalizeKey_(b.session_key)));
+}
+
+function normalizeSession_(session) {
+  const key = normalizeKey_(session.session_key || sessionKeyFromDate_(session.date));
+  return Object.assign({}, session, {
+    session_key: key,
+    date: displayDateForSession_(session, key),
+  });
 }
 
 function upsertAttendance_(studentId, sessionKey, status) {
@@ -406,6 +472,20 @@ function sheetObjects_(sheet) {
   });
 }
 
+function isInfoOnlySession_(sessionOrKey) {
+  const key = typeof sessionOrKey === 'object' && sessionOrKey !== null
+    ? normalizeKey_(sessionOrKey.session_key)
+    : normalizeKey_(sessionOrKey);
+  return INFO_ONLY_SESSION_KEYS.includes(key);
+}
+
+function isHighlightOnlySession_(sessionOrKey) {
+  const key = typeof sessionOrKey === 'object' && sessionOrKey !== null
+    ? normalizeKey_(sessionOrKey.session_key)
+    : normalizeKey_(sessionOrKey);
+  return HIGHLIGHT_ONLY_SESSION_KEYS.includes(key);
+}
+
 function isEditableSession_(session) {
   return sessionDate_(session) >= startOfTomorrow_();
 }
@@ -421,6 +501,28 @@ function sessionDate_(session) {
 
   const parts = String(session.date).split('/');
   return new Date(DEFAULT_YEAR, Number(parts[0]) - 1, Number(parts[1]));
+}
+
+function displayDateForSession_(session, sessionKey) {
+  if (Object.prototype.toString.call(session.date) === '[object Date]' && !isNaN(session.date.getTime())) {
+    return Utilities.formatDate(session.date, TIME_ZONE, 'MM/dd');
+  }
+
+  const text = clean_(session.date);
+  const parts = text.split('/');
+  if (parts.length >= 2) {
+    const month = Number(parts[0]);
+    const day = Number(parts[1]);
+    if (month > 0 && day > 0) {
+      return `${(`0${month}`).slice(-2)}/${(`0${day}`).slice(-2)}`;
+    }
+  }
+
+  const key = normalizeKey_(sessionKey || session.session_key);
+  if (/^\d{4}$/.test(key)) {
+    return `${key.slice(0, 2)}/${key.slice(2)}`;
+  }
+  return text;
 }
 
 function startOfTomorrow_() {

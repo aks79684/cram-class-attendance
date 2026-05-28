@@ -189,7 +189,15 @@
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyMWFE_2hiK6qhz7Cg_oBFzGWMMrQ9LqVL-2f__jsb-MpouieZ1RPe6s-sjLu0gORfInw/exec';
     const TIME_ZONE = 'Asia/Taipei';
     const DEFAULT_YEAR = 2026;
-    const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
+    const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
+    const INFO_ONLY_SESSION_KEYS = ['0725', '0726', '0727', '0728'];
+    const HIGHLIGHT_ONLY_SESSION_KEYS = ['0726', '0727'];
+    const SPECIAL_MARKER_SESSIONS = {
+      '0725': { session_key: '0725', date: '07/25', day: '六', time: '', subject: '國考行程標記', teacher: '', type: 'national_exam', classroom: '', notes: '此日期只在月曆標記，不需要回覆參加 / 不參加。', visible: true, editable: false, attendance_required: false },
+      '0726': { session_key: '0726', date: '07/26', day: '日', time: '', subject: '國考第一天', teacher: '', type: 'national_exam', classroom: '', notes: '此日期只在月曆標記，不需要回覆參加 / 不參加。', visible: true, editable: false, attendance_required: false, special_highlight: true },
+      '0727': { session_key: '0727', date: '07/27', day: '一', time: '', subject: '國考第二天', teacher: '', type: 'national_exam', classroom: '', notes: '此日期只在月曆標記，不需要回覆參加 / 不參加。', visible: true, editable: false, attendance_required: false, special_highlight: true },
+      '0728': { session_key: '0728', date: '07/28', day: '二', time: '', subject: '國考後續標記', teacher: '', type: 'national_exam', classroom: '', notes: '此日期只在月曆標記，不需要回覆參加 / 不參加。', visible: true, editable: false, attendance_required: false },
+    };
 
     const state = {
       activeTab: 'student',
@@ -227,25 +235,32 @@
       renderTabs();
     });
 
-    function populateGraduationYears() {
-      const select = $('regYear');
-      if (!select) return;
+    function getCurrentRocYear() {
       const now = new Date();
       const taiwanYear = new Intl.DateTimeFormat('en-CA', {
         timeZone: TIME_ZONE,
         year: 'numeric',
       }).format(now);
       const currentRocYear = Number(taiwanYear) - 1911;
+      return Number.isFinite(currentRocYear) && currentRocYear >= 95 ? currentRocYear : 115;
+    }
+
+    function graduationYearOptionsHtml(currentValue = '') {
       const startRocYear = 95;
-      const endRocYear = Number.isFinite(currentRocYear) && currentRocYear >= startRocYear ? currentRocYear : 115;
-      select.innerHTML = '';
-      for (let year = startRocYear; year <= endRocYear; year += 1) {
-        const option = document.createElement('option');
-        option.value = `${year}年`;
-        option.textContent = `${year}年`;
-        if (year === endRocYear) option.selected = true;
-        select.appendChild(option);
-      }
+      const endRocYear = getCurrentRocYear();
+      const current = String(currentValue || '').trim();
+      return Array.from({ length: endRocYear - startRocYear + 1 }, (_, index) => {
+        const year = startRocYear + index;
+        const value = `${year}年`;
+        const selected = current ? value === current : year === endRocYear;
+        return `<option value="${escapeAttr(value)}" ${selected ? 'selected' : ''}>${escapeHtml(value)}</option>`;
+      }).join('');
+    }
+
+    function populateGraduationYears() {
+      const select = $('regYear');
+      if (!select) return;
+      select.innerHTML = graduationYearOptionsHtml();
     }
 
     function bindEvents() {
@@ -441,6 +456,10 @@
 
     async function updateStatus(sessionKey, status) {
       const key = normalizeSessionKey(sessionKey);
+      if (isInfoOnlySession(key)) {
+        showToast('此日期只做月曆標記，不需要回覆參加 / 不參加。', 'warning');
+        return;
+      }
       const previous = getLocalSessionStatus(key);
       if (previous === status) return;
 
@@ -463,7 +482,7 @@
     }
 
     async function markAllAttend() {
-      const editableKeys = state.sessions.filter((session) => session.editable).map((session) => normalizeSessionKey(session.session_key));
+      const editableKeys = state.sessions.filter((session) => session.editable && !isInfoOnlySession(session)).map((session) => normalizeSessionKey(session.session_key));
       const previous = editableKeys.reduce((acc, key) => {
         acc[key] = getLocalSessionStatus(key);
         return acc;
@@ -514,11 +533,14 @@
             <h3 class="text-xl font-bold">${escapeHtml(state.student.name)} 同學</h3>
             <p class="text-sm text-slate-500">${escapeHtml(state.student.student_id)} · ${escapeHtml(state.student.year)} · ${escapeHtml(state.student.type)}</p>
           </div>
-          <div class="flex flex-wrap gap-2">
+          <div class="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
             <button id="markAllAttend" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-500" ${hasPendingSessions() ? 'disabled' : ''}>
               <i class="fa-solid fa-check-double mr-1"></i>全部參加
             </button>
-            <button id="studentLogout" class="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200">登出</button>
+            <button id="editStudentProfile" class="rounded-lg bg-indigo-50 px-3 py-2 text-sm font-bold text-indigo-700 hover:bg-indigo-100">
+              <i class="fa-solid fa-user-pen mr-1"></i>修改資料
+            </button>
+            <button id="studentLogout" class="col-span-2 rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200 sm:col-span-1">登出</button>
           </div>
         </div>
         <div class="mt-5 flex flex-col items-stretch gap-3 border-y border-slate-100 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -538,6 +560,7 @@
         if (confirmStudentLogout()) performStudentLogout();
       });
       $('markAllAttend').addEventListener('click', markAllAttend);
+      $('editStudentProfile').addEventListener('click', openStudentProfileModal);
       panel.querySelectorAll('.student-view').forEach((button) => {
         const active = button.dataset.mode === state.studentViewMode;
         button.className = `student-view rounded-md px-3 py-1.5 text-xs font-bold ${active ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`;
@@ -565,13 +588,114 @@
       });
     }
 
+    function openStudentProfileModal() {
+      if (!state.student) return;
+      const modal = $('sessionModal');
+      modal.innerHTML = `
+        <div class="flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div class="flex items-start justify-between bg-slate-950 p-5 text-white">
+            <div>
+              <p class="text-xs font-bold text-slate-400">學生基本資料</p>
+              <h4 class="mt-1 text-lg font-bold text-amber-300">修改姓名、畢業年份、班別與密碼</h4>
+              <p class="mt-1 text-xs text-slate-300">學號：${escapeHtml(state.student.student_id)}</p>
+            </div>
+            <button id="closeStudentProfileModal" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-white hover:bg-slate-700">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+          <form id="studentProfileForm" class="space-y-4 overflow-y-auto p-5">
+            <div>
+              <label class="block text-xs font-bold text-slate-500" for="profileName">姓名</label>
+              <input id="profileName" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value="${escapeAttr(state.student.name || '')}">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-500" for="profileYear">畢業年份</label>
+                <select id="profileYear" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                  ${graduationYearOptionsHtml(state.student.year)}
+                </select>
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-500" for="profileType">班別</label>
+                <select id="profileType" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                  <option ${state.student.type === '甲班' ? 'selected' : ''}>甲班</option>
+                  <option ${state.student.type === '乙班' ? 'selected' : ''}>乙班</option>
+                </select>
+              </div>
+            </div>
+            <div class="rounded-xl bg-slate-50 p-3">
+              <label class="block text-xs font-bold text-slate-500" for="profileNewPassword">新密碼</label>
+              <input id="profileNewPassword" type="password" autocomplete="new-password" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="不更改密碼可留空">
+              <p class="mt-2 text-xs text-slate-500">儲存時會用目前登入密碼驗證身分；若有填新密碼，之後請用新密碼登入。</p>
+            </div>
+            <div class="grid grid-cols-2 gap-3 pt-1">
+              <button type="button" id="cancelStudentProfile" class="rounded-lg bg-slate-100 px-4 py-2.5 text-sm font-bold text-slate-700 hover:bg-slate-200">取消</button>
+              <button class="rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-500">
+                <i class="fa-solid fa-floppy-disk mr-1"></i>儲存資料
+              </button>
+            </div>
+          </form>
+        </div>
+      `;
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      $('closeStudentProfileModal').addEventListener('click', closeSessionModal);
+      $('cancelStudentProfile').addEventListener('click', closeSessionModal);
+      $('studentProfileForm').addEventListener('submit', saveStudentProfile);
+    }
+
+    async function saveStudentProfile(event) {
+      event.preventDefault();
+      if (!state.student) return;
+      const nextPassword = $('profileNewPassword').value;
+      const payload = {
+        student_id: state.student.student_id,
+        password: state.studentPassword,
+        name: $('profileName').value.trim(),
+        year: $('profileYear').value,
+        type: $('profileType').value,
+        new_password: nextPassword,
+      };
+      if (!payload.name) return showToast('請填寫姓名。', 'warning');
+
+      setLoading($('studentProfileForm'), true);
+      try {
+        const response = await api('updateStudentProfile', payload);
+        applyStudentProfileResponse(response, payload, nextPassword);
+        closeSessionModal();
+        renderStudentPanel();
+        showToast('基本資料已更新。');
+      } catch (error) {
+        showToast(error.message, 'warning');
+      } finally {
+        if ($('studentProfileForm')) setLoading($('studentProfileForm'), false);
+      }
+    }
+
+    function applyStudentProfileResponse(response, fallbackPayload, nextPassword) {
+      if (response && response.student) {
+        state.student = response.student;
+      } else {
+        state.student = Object.assign({}, state.student, {
+          name: fallbackPayload.name,
+          year: fallbackPayload.year,
+          type: fallbackPayload.type,
+        });
+      }
+      if (response && Array.isArray(response.sessions)) state.sessions = response.sessions;
+      if (nextPassword) {
+        state.studentPassword = nextPassword;
+        if ($('studentPassword')) $('studentPassword').value = nextPassword;
+      }
+    }
+
     function studentCalendarHtml() {
-      const activeSession = state.sessions.find((session) => normalizeSessionKey(session.session_key) === state.selectedStudentDate);
+      const activeSession = findStudentSessionByKey(state.selectedStudentDate);
       return `
         <div class="space-y-4 sm:space-y-5">
           ${monthSwitcherHtml(state.studentMonth)}
           ${calendarGridHtml(state.sessions, state.studentMonth, state.selectedStudentDate)}
-          <p class="text-center text-xs font-bold text-slate-500 sm:hidden">點選有課程的日期後，可在下方直接修改出席狀態。</p>
+          <p class="text-center text-xs font-bold text-slate-500 sm:hidden">點選日期後，可在下方查看資訊；一般課程可直接修改出席狀態。</p>
           <div class="rounded-lg bg-slate-950 p-4 text-white sm:p-5">
             ${activeSession ? studentActiveSessionHtml(activeSession) : '<p class="text-sm text-slate-300">請選擇有課程的日期。</p>'}
           </div>
@@ -581,13 +705,14 @@
 
     function studentActiveSessionHtml(session) {
       const current = normalizeStatus(session.status);
-      const surface = statusSurfaceClass(current, true);
+      const infoOnly = isInfoOnlySession(session);
+      const surface = infoOnly ? infoOnlySurfaceClass(session, true) : statusSurfaceClass(current, true);
       const pending = isSessionPending(session.session_key);
       return `
         <div class="flex flex-col gap-3 rounded-lg border p-4 ${surface} sm:flex-row sm:items-start sm:justify-between">
           <div>
             <div class="flex flex-wrap items-center gap-2">
-              <span class="rounded bg-indigo-800 px-2 py-1 text-xs font-bold">${escapeHtml(session.date)} (${escapeHtml(session.day)})</span>
+              <span class="rounded bg-indigo-800 px-2 py-1 text-xs font-bold">${escapeHtml(sessionDisplayDate(session))} (${escapeHtml(session.day)})</span>
               <span class="text-xs font-bold text-amber-300"><i class="fa-regular fa-clock mr-1"></i>${escapeHtml(session.time)}</span>
             </div>
             <h4 class="mt-2 text-lg font-bold">${escapeHtml(session.subject)}</h4>
@@ -595,10 +720,16 @@
             ${pending ? savingBadgeHtml() : ''}
             ${session.notes ? `<p class="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">${escapeHtml(session.notes)}</p>` : ''}
           </div>
-          <div class="grid shrink-0 grid-cols-2 gap-2 sm:flex">
-            ${statusButton(session, 'attend', '參加', 'bg-emerald-500 text-white hover:bg-emerald-400', current, pending)}
-            ${statusButton(session, 'absent', '不參加', 'bg-rose-500 text-white hover:bg-rose-400', current, pending)}
-          </div>
+          ${infoOnly ? `
+            <div class="rounded-xl bg-white/80 px-4 py-3 text-sm font-bold text-slate-700">
+              <i class="fa-solid fa-map-pin mr-1 text-amber-600"></i>此日期僅供月曆標記，不需回覆出席。
+            </div>
+          ` : `
+            <div class="grid shrink-0 grid-cols-2 gap-2 sm:flex">
+              ${statusButton(session, 'attend', '參加', 'bg-emerald-500 text-white hover:bg-emerald-400', current, pending)}
+              ${statusButton(session, 'absent', '不參加', 'bg-rose-500 text-white hover:bg-rose-400', current, pending)}
+            </div>
+          `}
         </div>
       `;
     }
@@ -631,14 +762,15 @@
 
     function sessionCardHtml(session) {
       const current = normalizeStatus(session.status);
-      const surface = statusSurfaceClass(current);
+      const infoOnly = isInfoOnlySession(session);
+      const surface = infoOnly ? infoOnlySurfaceClass(session) : statusSurfaceClass(current);
       const pending = isSessionPending(session.session_key);
       return `
         <article class="rounded-lg border p-4 ${surface}">
           <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <div class="flex flex-wrap items-center gap-2">
-                <span class="rounded bg-slate-900 px-2 py-1 text-xs font-bold text-white">${escapeHtml(session.date)} (${escapeHtml(session.day)})</span>
+                <span class="rounded bg-slate-900 px-2 py-1 text-xs font-bold text-white">${escapeHtml(sessionDisplayDate(session))} (${escapeHtml(session.day)})</span>
                 <span class="rounded px-2 py-1 text-xs font-bold ${badgeClass(session.type)}">${typeLabel(session.type)}</span>
               </div>
               <h5 class="mt-2 font-bold">${escapeHtml(session.subject)}</h5>
@@ -646,10 +778,12 @@
               ${pending ? savingBadgeHtml() : ''}
               ${session.notes ? `<p class="mt-2 rounded bg-amber-50 p-2 text-sm text-amber-900">${escapeHtml(session.notes)}</p>` : ''}
             </div>
-            <div class="grid shrink-0 grid-cols-2 gap-2 sm:flex">
-              ${statusButton(session, 'attend', '參加', 'bg-emerald-600 text-white hover:bg-emerald-500', current, pending)}
-              ${statusButton(session, 'absent', '不參加', 'bg-rose-600 text-white hover:bg-rose-500', current, pending)}
-            </div>
+            ${infoOnly ? '<div class="shrink-0 rounded-lg bg-white/80 px-3 py-2 text-sm font-bold text-slate-600">僅月曆標記</div>' : `
+              <div class="grid shrink-0 grid-cols-2 gap-2 sm:flex">
+                ${statusButton(session, 'attend', '參加', 'bg-emerald-600 text-white hover:bg-emerald-500', current, pending)}
+                ${statusButton(session, 'absent', '不參加', 'bg-rose-600 text-white hover:bg-rose-500', current, pending)}
+              </div>
+            `}
           </div>
         </article>
       `;
@@ -841,22 +975,26 @@
       document.querySelectorAll('.copy-line').forEach((button) => {
         button.addEventListener('click', () => copyLineReport(button.dataset.key));
       });
+      document.querySelectorAll('.generate-signin').forEach((button) => {
+        button.addEventListener('click', () => generateSigninSheet(button.dataset.key));
+      });
       document.querySelectorAll('.edit-session').forEach((button) => {
         button.addEventListener('click', () => openSessionModal(button.dataset.key));
       });
     }
 
     function adminSessionCardHtml(session) {
-      const attend = session.attendance.filter((item) => item.status === 'attend');
-      const absent = session.attendance.filter((item) => item.status !== 'attend');
+      const infoOnly = isInfoOnlySession(session);
+      const attend = infoOnly ? [] : session.attendance.filter((item) => item.status === 'attend');
+      const absent = infoOnly ? [] : session.attendance.filter((item) => item.status !== 'attend');
       return `
         <article class="rounded-lg bg-white p-5 shadow-sm">
           <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <div class="flex flex-wrap items-center gap-2">
-                <span class="rounded bg-slate-900 px-2 py-1 text-xs font-bold text-white">${escapeHtml(session.date)} (${escapeHtml(session.day)})</span>
+                <span class="rounded bg-slate-900 px-2 py-1 text-xs font-bold text-white">${escapeHtml(sessionDisplayDate(session))} (${escapeHtml(session.day)})</span>
                 <span class="rounded px-2 py-1 text-xs font-bold ${badgeClass(session.type)}">${typeLabel(session.type)}</span>
-                ${session.editable ? '<span class="rounded bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">開放修改</span>' : '<span class="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">已過日期</span>'}
+                ${infoOnly ? '<span class="rounded bg-amber-100 px-2 py-1 text-xs font-bold text-amber-800">只標記</span>' : session.editable ? '<span class="rounded bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">開放修改</span>' : '<span class="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">已過日期</span>'}
               </div>
               <h4 class="mt-2 text-lg font-bold">${escapeHtml(session.subject)}</h4>
               <p class="mt-1 text-sm text-slate-500">${escapeHtml(session.time)} · ${escapeHtml(session.classroom)} · ${escapeHtml(session.teacher)}</p>
@@ -869,12 +1007,17 @@
               <button class="copy-line rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500" data-key="${escapeAttr(session.session_key)}">
                 <i class="fa-brands fa-line mr-1"></i>複製 LINE
               </button>
+              <button class="generate-signin rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500" data-key="${escapeAttr(session.session_key)}">
+                <i class="fa-solid fa-file-word mr-1"></i>簽到表
+              </button>
             </div>
           </div>
-          <div class="mt-4 grid gap-3 md:grid-cols-2">
-            ${nameListHtml('參加', attend, 'text-emerald-700 bg-emerald-50')}
-            ${nameListHtml('不參加', absent, 'text-rose-700 bg-rose-50')}
-          </div>
+          ${infoOnly ? '<div class="mt-4 rounded-lg bg-amber-50 p-3 text-sm font-bold text-amber-900">此日期只在月曆標記，不列入出席回覆。</div>' : `
+            <div class="mt-4 grid gap-3 md:grid-cols-2">
+              ${nameListHtml('參加', attend, 'text-emerald-700 bg-emerald-50')}
+              ${nameListHtml('不參加', absent, 'text-rose-700 bg-rose-50')}
+            </div>
+          `}
         </article>
       `;
     }
@@ -898,15 +1041,16 @@
     function openSessionModal(sessionKey) {
       const session = state.adminData.sessions.find((item) => normalizeSessionKey(item.session_key) === normalizeSessionKey(sessionKey));
       if (!session) return;
-      const attend = session.attendance.filter((item) => item.status === 'attend');
-      const absent = session.attendance.filter((item) => item.status !== 'attend');
+      const infoOnly = isInfoOnlySession(session);
+      const attend = infoOnly ? [] : session.attendance.filter((item) => item.status === 'attend');
+      const absent = infoOnly ? [] : session.attendance.filter((item) => item.status !== 'attend');
       const modal = $('sessionModal');
       modal.innerHTML = `
         <div class="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
           <div class="flex items-start justify-between bg-slate-950 p-5 text-white">
             <div>
               <div class="flex flex-wrap items-center gap-2">
-                <span class="rounded bg-indigo-700 px-2 py-1 text-xs font-bold">${escapeHtml(session.date)} (${escapeHtml(session.day)})</span>
+                <span class="rounded bg-indigo-700 px-2 py-1 text-xs font-bold">${escapeHtml(sessionDisplayDate(session))} (${escapeHtml(session.day)})</span>
                 <span class="text-xs text-slate-300">${escapeHtml(session.time)}</span>
               </div>
               <h4 class="mt-2 text-lg font-bold text-amber-300">${escapeHtml(session.subject)}</h4>
@@ -918,7 +1062,7 @@
           <div class="flex-1 space-y-5 overflow-y-auto bg-slate-50 p-5">
             <form id="sessionEditForm" class="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-4">
               <input type="hidden" id="editSessionKey" value="${escapeAttr(session.session_key)}">
-              ${fieldHtml('editDate', '日期', session.date, '例如 07/04')}
+              ${fieldHtml('editDate', '日期', sessionDisplayDate(session), '例如 07/04')}
               ${fieldHtml('editDay', '星期', session.day, '例如 六')}
               ${fieldHtml('editTime', '時間', session.time, '例如 09:00-16:00')}
               <div>
@@ -943,10 +1087,12 @@
                 </button>
               </div>
             </form>
-            <div class="grid gap-3 md:grid-cols-2">
-              ${nameListHtml('參加', attend, 'text-emerald-700 bg-emerald-50')}
-              ${nameListHtml('不參加', absent, 'text-rose-700 bg-rose-50')}
-            </div>
+            ${infoOnly ? '<div class="rounded-lg bg-amber-50 p-3 text-sm font-bold text-amber-900">此日期只在月曆標記，不列入出席回覆。</div>' : `
+              <div class="grid gap-3 md:grid-cols-2">
+                ${nameListHtml('參加', attend, 'text-emerald-700 bg-emerald-50')}
+                ${nameListHtml('不參加', absent, 'text-rose-700 bg-rose-50')}
+              </div>
+            `}
           </div>
         </div>
       `;
@@ -1037,7 +1183,7 @@
       const attend = session.attendance.filter((item) => item.status === 'attend');
       const absent = session.attendance.filter((item) => item.status !== 'attend');
       const text = `115衝刺班出席回報
-日期：${session.date} (${session.day}) ${session.time}
+日期：${sessionDisplayDate(session)} (${session.day}) ${session.time}
 課程：${session.subject}
 教室：${session.classroom}
 老師：${session.teacher}
@@ -1050,7 +1196,123 @@ ${attend.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
 ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).join('、') || '暫無'}`;
 
       await copyText(text);
-      showToast(`已複製 ${session.date} 的 LINE 通報文字。`);
+      showToast(`已複製 ${sessionDisplayDate(session)} 的 LINE 通報文字。`);
+    }
+
+
+    function findAdminSession(sessionKey) {
+      const normalized = normalizeSessionKey(sessionKey);
+      return state.adminData.sessions.find((item) => {
+        const itemKey = normalizeSessionKey(item.session_key);
+        return itemKey === normalized || legacySessionKey(itemKey) === legacySessionKey(normalized);
+      });
+    }
+
+    function generateSigninSheet(sessionKey) {
+      const session = findAdminSession(sessionKey);
+      if (!session) return showToast('找不到要生成簽到表的課程。', 'warning');
+
+      const attend = session.attendance.filter((item) => item.status === 'attend');
+      const absent = session.attendance.filter((item) => item.status !== 'attend');
+      const rows = attend.length ? attend : session.attendance;
+      const tableRows = rows.map((item, index) => `
+        <tr>
+          <td class="col-index">${index + 1}</td>
+          <td class="col-year">${escapeHtml(item.year || '')}</td>
+          <td class="col-name">${escapeHtml(item.name || '')}</td>
+          <td class="col-sign">&nbsp;</td>
+          <td class="col-note">&nbsp;</td>
+        </tr>
+      `).join('');
+      const absentNames = absent.map((item) => escapeHtml(`${item.name}（${item.year || '未填年份'}）`)).join('、') || '無';
+      const title = `115衝刺班簽到表_${safeFilePart(sessionDisplayDate(session))}_${safeFilePart(session.subject)}`;
+      const html = `
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <title>${escapeHtml(title)}</title>
+  <style>
+    @page { size: A4; margin: 1.6cm; }
+    body { font-family: "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif; color: #111827; }
+    h1 { margin: 0 0 12px; text-align: center; font-size: 24px; }
+    .meta { width: 100%; margin: 0 0 14px; border-collapse: collapse; font-size: 13px; }
+    .meta td { border: 1px solid #94a3b8; padding: 7px 9px; }
+    .meta .label { width: 80px; background: #f1f5f9; font-weight: bold; }
+    .signin { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; }
+    .signin th, .signin td { border: 1.2pt solid #334155; padding: 8px 8px; text-align: center; vertical-align: middle; }
+    .signin th { background: #e2e8f0; font-weight: bold; height: 30px; }
+    .signin tbody td { height: 48px; }
+    .signin .col-index { width: 42px; }
+    .signin .col-year { width: 86px; }
+    .signin .col-name { width: 120px; text-align: left; font-weight: bold; }
+    .signin .col-sign { width: 210px; height: 56px; }
+    .signin .col-note { width: 118px; }
+    .sign-cell { width: 210px; }
+    .note-cell { width: 118px; }
+    .footer { margin-top: 14px; font-size: 12px; line-height: 1.7; color: #475569; }
+  </style>
+</head>
+<body>
+  <h1>115衝刺班簽到表</h1>
+  <table class="meta">
+    <tr>
+      <td class="label">日期</td><td>${escapeHtml(sessionDisplayDate(session))}（${escapeHtml(session.day)}）</td>
+      <td class="label">時間</td><td>${escapeHtml(session.time)}</td>
+    </tr>
+    <tr>
+      <td class="label">課程</td><td colspan="3">${escapeHtml(session.subject)}</td>
+    </tr>
+    <tr>
+      <td class="label">老師</td><td>${escapeHtml(session.teacher)}</td>
+      <td class="label">教室</td><td>${escapeHtml(session.classroom)}</td>
+    </tr>
+    <tr>
+      <td class="label">備註</td><td colspan="3">${escapeHtml(session.notes || '無')}</td>
+    </tr>
+  </table>
+  <table class="signin">
+    <colgroup>
+      <col class="col-index">
+      <col class="col-year">
+      <col class="col-name">
+      <col class="col-sign">
+      <col class="col-note">
+    </colgroup>
+    <thead>
+      <tr>
+        <th class="col-index">序號</th>
+        <th class="col-year">畢業年份</th>
+        <th class="col-name">姓名</th>
+        <th class="col-sign sign-cell">簽到</th>
+        <th class="col-note note-cell">備註</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${tableRows || '<tr><td colspan="5">目前沒有學生資料</td></tr>'}
+    </tbody>
+  </table>
+  <div class="footer">
+    <div>已回覆參加：${attend.length} 人；不參加：${absent.length} 人。</div>
+    <div>不參加名單：${absentNames}</div>
+  </div>
+</body>
+</html>`;
+
+      const blob = new Blob(['\uFEFF' + html], { type: 'application/msword;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${title}.doc`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      showToast(`已生成 ${sessionDisplayDate(session)} 簽到表。`);
+    }
+
+    function safeFilePart(value) {
+      return String(value || '').trim().replace(/[\\/:*?"<>|]/g, '-').replace(/\s+/g, '').slice(0, 40) || '未命名';
     }
 
     async function exportExcel() {
@@ -1094,6 +1356,65 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
 </Workbook>`;
     }
 
+    function findStudentSessionByKey(sessionKey) {
+      const key = normalizeSessionKey(sessionKey);
+      return state.sessions.find((session) => normalizeSessionKey(session.session_key) === key) || specialMarkerSession(key);
+    }
+
+    function specialMarkerSession(sessionKey) {
+      const key = normalizeSessionKey(sessionKey);
+      const marker = SPECIAL_MARKER_SESSIONS[key];
+      return marker ? Object.assign({}, marker) : null;
+    }
+
+    function addSpecialMarkerSessions(byDate, month) {
+      Object.keys(SPECIAL_MARKER_SESSIONS).forEach((key) => {
+        const marker = SPECIAL_MARKER_SESSIONS[key];
+        if (monthFromSession(marker) !== month) return;
+        byDate[key] = Object.assign({}, marker, byDate[key] || {}, {
+          attendance_required: false,
+          editable: false,
+          special_highlight: HIGHLIGHT_ONLY_SESSION_KEYS.includes(key) || Boolean((byDate[key] || {}).special_highlight),
+        });
+      });
+    }
+
+    function isInfoOnlySession(sessionOrKey) {
+      const key = typeof sessionOrKey === 'object' && sessionOrKey !== null
+        ? normalizeSessionKey(sessionOrKey.session_key)
+        : normalizeSessionKey(sessionOrKey);
+      if (INFO_ONLY_SESSION_KEYS.includes(key)) return true;
+      return Boolean(sessionOrKey && typeof sessionOrKey === 'object' && sessionOrKey.attendance_required === false);
+    }
+
+    function isHighlightOnlySession(sessionOrKey) {
+      const key = typeof sessionOrKey === 'object' && sessionOrKey !== null
+        ? normalizeSessionKey(sessionOrKey.session_key)
+        : normalizeSessionKey(sessionOrKey);
+      if (HIGHLIGHT_ONLY_SESSION_KEYS.includes(key)) return true;
+      return Boolean(sessionOrKey && typeof sessionOrKey === 'object' && sessionOrKey.special_highlight);
+    }
+
+    function infoOnlySurfaceClass(session, compact = false) {
+      if (isHighlightOnlySession(session)) {
+        return compact
+          ? 'border-amber-300 bg-amber-50 text-amber-950'
+          : 'border-amber-200 bg-amber-50';
+      }
+      return compact
+        ? 'border-sky-300 bg-sky-50 text-sky-950'
+        : 'border-sky-200 bg-sky-50';
+    }
+
+    function infoOnlyCalendarClass(session, adminMode = false) {
+      if (isHighlightOnlySession(session)) return 'border-amber-300 bg-amber-100 text-amber-950';
+      return adminMode ? 'border-sky-200 bg-sky-50 text-sky-950' : 'border-sky-200 bg-sky-50 text-sky-950';
+    }
+
+    function infoOnlyDotClass(session) {
+      return isHighlightOnlySession(session) ? 'bg-amber-600' : 'bg-sky-500';
+    }
+
     function monthSwitcherHtml(currentMonth) {
       return `
         <div class="flex items-center gap-2 overflow-x-auto pb-1">
@@ -1109,6 +1430,7 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
         if (monthFromSession(session) === month) acc[key] = session;
         return acc;
       }, {});
+      addSpecialMarkerSessions(byDate, month);
       const selected = normalizeSessionKey(selectedKey);
       const days = generateCalendarGrid(DEFAULT_YEAR, month);
       return `
@@ -1127,8 +1449,9 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
                 const session = byDate[key];
                 const isSelected = selected === key;
                 const status = session ? normalizeStatus(session.status) : '';
-                const statusClass = adminMode && session ? 'border-indigo-200 bg-indigo-50 text-indigo-900' : status === 'attend' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : session ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-slate-200 bg-white text-slate-400 opacity-60';
-                const dot = adminMode && session ? 'bg-indigo-500' : status === 'attend' ? 'bg-emerald-500' : session ? 'bg-rose-500' : '';
+                const infoOnly = session && isInfoOnlySession(session);
+                const statusClass = infoOnly ? infoOnlyCalendarClass(session, adminMode) : adminMode && session ? 'border-indigo-200 bg-indigo-50 text-indigo-900' : status === 'attend' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : session ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-slate-200 bg-white text-slate-400 opacity-60';
+                const dot = infoOnly ? infoOnlyDotClass(session) : adminMode && session ? 'bg-indigo-500' : status === 'attend' ? 'bg-emerald-500' : session ? 'bg-rose-500' : '';
                 const pending = session && isSessionPending(session.session_key);
                 return `
                   <button type="button" class="calendar-day relative flex flex-col justify-between rounded-lg border p-2 text-left text-xs transition ${statusClass} ${isSelected ? 'ring-2 ring-indigo-600' : ''} ${session ? 'hover:shadow-sm' : 'cursor-default'}" ${session ? `data-date-key="${escapeAttr(key)}"` : 'disabled'} aria-label="${session ? escapeAttr(session.subject) : ''}">
@@ -1138,7 +1461,8 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
                     </div>
                     <div class="calendar-card-title min-h-[34px] overflow-hidden text-[12px] font-bold leading-snug">${session ? escapeHtml(session.subject) : ''}</div>
                     ${session ? `<div class="truncate text-[10px] opacity-80">${escapeHtml(session.time || '')}</div>` : ''}
-                    ${adminMode && session ? `<div class="text-[10px] text-slate-500">${session.counts.attend}/${session.attendance.length} 參加</div>` : ''}
+                    ${adminMode && session && !infoOnly ? `<div class="text-[10px] text-slate-500">${session.counts.attend}/${session.attendance.length} 參加</div>` : ''}
+                    ${infoOnly ? '<div class="text-[10px] font-bold opacity-80">標記</div>' : ''}
                   </button>
                 `;
               }).join('')}
@@ -1161,10 +1485,11 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
               const session = byDate[key];
               const isSelected = selectedKey === key;
               const status = session ? normalizeStatus(session.status) : '';
+              const infoOnly = session && isInfoOnlySession(session);
               const pending = session && isSessionPending(session.session_key);
-              const statusClass = adminMode && session ? 'border-indigo-200 bg-indigo-50 text-indigo-900' : status === 'attend' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : session ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-slate-200 bg-white text-slate-400 opacity-60';
-              const dot = adminMode && session ? 'bg-indigo-500' : status === 'attend' ? 'bg-emerald-500' : session ? 'bg-rose-500' : '';
-              const label = session ? escapeAttr(`${session.date} ${session.subject}`) : '';
+              const statusClass = infoOnly ? infoOnlyCalendarClass(session, adminMode) : adminMode && session ? 'border-indigo-200 bg-indigo-50 text-indigo-900' : status === 'attend' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : session ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-slate-200 bg-white text-slate-400 opacity-60';
+              const dot = infoOnly ? infoOnlyDotClass(session) : adminMode && session ? 'bg-indigo-500' : status === 'attend' ? 'bg-emerald-500' : session ? 'bg-rose-500' : '';
+              const label = session ? escapeAttr(`${sessionDisplayDate(session)} ${session.subject}`) : '';
               const title = session ? escapeHtml(shortSubject(session.subject)) : '';
               return `
                 <button type="button" class="mobile-calendar-day relative flex flex-col items-center justify-start gap-1 rounded-lg border px-1 py-1.5 text-center transition ${statusClass} ${isSelected ? 'ring-2 ring-indigo-600' : ''} ${session ? 'active:scale-[0.98]' : 'cursor-default'}" ${session ? `data-date-key="${escapeAttr(key)}"` : 'disabled'} aria-label="${label}">
@@ -1196,7 +1521,7 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
           <div class="flex items-start justify-between bg-slate-950 p-4 text-white">
             <div>
               <div class="flex flex-wrap items-center gap-2">
-                <span class="rounded bg-indigo-700 px-2 py-1 text-xs font-bold">${escapeHtml(session.date)} (${escapeHtml(session.day)})</span>
+                <span class="rounded bg-indigo-700 px-2 py-1 text-xs font-bold">${escapeHtml(sessionDisplayDate(session))} (${escapeHtml(session.day)})</span>
                 <span class="text-xs text-slate-300">${escapeHtml(session.time || '')}</span>
               </div>
               <h4 class="mt-2 text-lg font-bold text-amber-300">${escapeHtml(session.subject)}</h4>
@@ -1237,17 +1562,32 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
     function generateCalendarGrid(year, month) {
       const first = new Date(year, month - 1, 1);
       const daysInMonth = new Date(year, month, 0).getDate();
-      const grid = Array(first.getDay()).fill(null);
+      const mondayFirstOffset = (first.getDay() + 6) % 7;
+      const grid = Array(mondayFirstOffset).fill(null);
       for (let day = 1; day <= daysInMonth; day += 1) grid.push(day);
       return grid;
     }
 
     function monthFromSession(session) {
-      const text = String(session.date || '');
+      const text = String(sessionDisplayDate(session) || '');
       const month = Number(text.split('/')[0]);
       if (Number.isFinite(month) && month > 0) return month;
       const keyMonth = Number(normalizeSessionKey(session.session_key).slice(0, 2));
       return Number.isFinite(keyMonth) && keyMonth > 0 ? keyMonth : 7;
+    }
+
+    function sessionDisplayDate(session) {
+      const key = normalizeSessionKey(session && session.session_key);
+      if (/^\d{4}$/.test(key)) return `${key.slice(0, 2)}/${key.slice(2)}`;
+
+      const text = String((session && session.date) || '');
+      const parts = text.split('/');
+      if (parts.length >= 2) {
+        const month = Number(parts[0]);
+        const day = Number(parts[1]);
+        if (month > 0 && day > 0) return `${String(month).padStart(2, '0')}/${String(day).padStart(2, '0')}`;
+      }
+      return text;
     }
 
     function sessionKeyFromDate(dateText) {
