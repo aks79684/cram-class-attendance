@@ -18,6 +18,7 @@
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
     }
+    .mobile-calendar-day { min-height: 54px; }
     @media (max-width: 640px) {
       .safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
     }
@@ -451,7 +452,12 @@
       });
       panel.querySelectorAll('[data-date-key]').forEach((button) => {
         button.addEventListener('click', () => {
-          state.selectedStudentDate = button.dataset.dateKey;
+          const key = button.dataset.dateKey;
+          state.selectedStudentDate = key;
+          if (window.matchMedia('(max-width: 640px)').matches) {
+            openStudentAttendanceModal(key);
+            return;
+          }
           renderStudentPanel();
         });
       });
@@ -980,13 +986,10 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
       }, {});
       const selected = normalizeSessionKey(selectedKey);
       const days = generateCalendarGrid(DEFAULT_YEAR, month);
-      const monthSessions = Object.entries(byDate)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([, session]) => session);
       return `
         <div class="rounded-lg border border-slate-200 bg-white p-3 sm:p-4">
           <div class="sm:hidden">
-            ${mobileMonthAgendaHtml(monthSessions, selected, adminMode)}
+            ${mobileCalendarGridHtml(days, byDate, month, selected, adminMode)}
           </div>
           <div class="hidden sm:block">
             <div class="mb-2 grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-400">
@@ -1020,38 +1023,90 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
       `;
     }
 
-    function mobileMonthAgendaHtml(sessions, selectedKey, adminMode = false) {
-      if (!sessions.length) return '<p class="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">這個月份沒有課程。</p>';
+    function mobileCalendarGridHtml(days, byDate, month, selectedKey, adminMode = false) {
       return `
-        <div class="space-y-2">
-          ${sessions.map((session) => {
-            const key = normalizeSessionKey(session.session_key);
-            const selected = selectedKey === key;
-            const status = normalizeStatus(session.status);
-            const pending = isSessionPending(session.session_key);
-            const statusText = adminMode ? `${session.counts.attend}/${session.attendance.length} 參加` : status === 'attend' ? '參加' : '不參加';
-            const statusPill = adminMode ? 'bg-indigo-100 text-indigo-700' : status === 'attend' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
-            return `
-              <button type="button" class="w-full rounded-xl border p-3 text-left transition ${selected ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-100' : 'border-slate-200 bg-white hover:bg-slate-50'}" data-date-key="${escapeAttr(key)}">
-                <div class="flex items-start gap-3">
-                  <div class="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-slate-900 text-white">
-                    <span class="text-base font-bold leading-none">${Number(key.slice(2, 4))}</span>
-                    <span class="mt-1 text-[10px] leading-none">${escapeHtml(session.day)}</span>
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-start justify-between gap-2">
-                      <h5 class="break-words text-sm font-bold leading-5 text-slate-900">${escapeHtml(session.subject)}</h5>
-                      <span class="shrink-0 rounded-full px-2 py-1 text-[11px] font-bold ${statusPill}">${pending ? '儲存中' : statusText}</span>
-                    </div>
-                    <p class="mt-1 text-xs leading-5 text-slate-500">${escapeHtml(session.time || '')} · ${escapeHtml(session.classroom || '')}</p>
-                    ${session.teacher ? `<p class="text-xs text-slate-500">${escapeHtml(session.teacher)}</p>` : ''}
-                  </div>
-                </div>
-              </button>
-            `;
-          }).join('')}
+        <div>
+          <div class="mb-2 grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-slate-400">
+            ${WEEKDAYS.map((day) => `<div class="${day === '日' ? 'text-rose-500' : day === '六' ? 'text-indigo-600' : ''}">${day}</div>`).join('')}
+          </div>
+          <div class="grid grid-cols-7 gap-1">
+            ${days.map((day) => {
+              if (!day) return '<div class="mobile-calendar-day rounded-lg border border-dashed border-slate-100 bg-slate-50/60"></div>';
+              const key = `${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
+              const session = byDate[key];
+              const isSelected = selectedKey === key;
+              const status = session ? normalizeStatus(session.status) : '';
+              const pending = session && isSessionPending(session.session_key);
+              const statusClass = adminMode && session ? 'border-indigo-200 bg-indigo-50 text-indigo-900' : status === 'attend' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : session ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-slate-200 bg-white text-slate-400 opacity-60';
+              const dot = adminMode && session ? 'bg-indigo-500' : status === 'attend' ? 'bg-emerald-500' : session ? 'bg-rose-500' : '';
+              const label = session ? escapeAttr(`${session.date} ${session.subject}`) : '';
+              const title = session ? escapeHtml(shortSubject(session.subject)) : '';
+              return `
+                <button type="button" class="mobile-calendar-day relative flex flex-col items-center justify-start gap-1 rounded-lg border px-1 py-1.5 text-center transition ${statusClass} ${isSelected ? 'ring-2 ring-indigo-600' : ''} ${session ? 'active:scale-[0.98]' : 'cursor-default'}" ${session ? `data-date-key="${escapeAttr(key)}"` : 'disabled'} aria-label="${label}">
+                  <span class="text-xs font-bold leading-none">${day}</span>
+                  ${pending ? '<span class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-indigo-600"></span>' : session ? `<span class="h-1.5 w-1.5 rounded-full ${dot}"></span>` : '<span class="h-1.5 w-1.5"></span>'}
+                  ${session ? `<span class="line-clamp-2 max-w-full text-[10px] font-bold leading-[1.15]">${title}</span>` : ''}
+                </button>
+              `;
+            }).join('')}
+          </div>
         </div>
       `;
+    }
+
+    function shortSubject(subject) {
+      const text = String(subject || '').replace(/\s+/g, '');
+      return text.length > 8 ? `${text.slice(0, 8)}…` : text;
+    }
+
+    function openStudentAttendanceModal(sessionKey) {
+      const session = state.sessions.find((item) => normalizeSessionKey(item.session_key) === normalizeSessionKey(sessionKey));
+      if (!session) return;
+      const current = normalizeStatus(session.status);
+      const pending = isSessionPending(session.session_key);
+      const editable = session.editable !== false && !pending;
+      const modal = $('sessionModal');
+      modal.innerHTML = `
+        <div class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div class="flex items-start justify-between bg-slate-950 p-4 text-white">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded bg-indigo-700 px-2 py-1 text-xs font-bold">${escapeHtml(session.date)} (${escapeHtml(session.day)})</span>
+                <span class="text-xs text-slate-300">${escapeHtml(session.time || '')}</span>
+              </div>
+              <h4 class="mt-2 text-lg font-bold text-amber-300">${escapeHtml(session.subject)}</h4>
+            </div>
+            <button id="closeStudentAttendanceModal" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-white hover:bg-slate-700">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+          <div class="space-y-4 p-4">
+            <div class="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+              <p>${escapeHtml(session.classroom || '')} ${session.teacher ? `· ${escapeHtml(session.teacher)}` : ''}</p>
+              ${session.notes ? `<p class="mt-2 rounded-lg bg-amber-50 p-2 text-amber-900">${escapeHtml(session.notes)}</p>` : ''}
+              ${session.editable === false ? '<p class="mt-2 font-bold text-slate-500">此課程日期已過，不能修改。</p>' : ''}
+              ${pending ? '<p class="mt-2 font-bold text-indigo-600">儲存中，請稍候。</p>' : ''}
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <button class="student-modal-status rounded-xl px-4 py-4 text-base font-bold ${current === 'attend' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'} ${editable ? '' : 'opacity-60 cursor-not-allowed'}" data-status="attend" ${editable ? '' : 'disabled'}>
+                <i class="fa-solid fa-circle-check mr-1"></i>參加
+              </button>
+              <button class="student-modal-status rounded-xl px-4 py-4 text-base font-bold ${current === 'absent' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600'} ${editable ? '' : 'opacity-60 cursor-not-allowed'}" data-status="absent" ${editable ? '' : 'disabled'}>
+                <i class="fa-solid fa-circle-xmark mr-1"></i>不參加
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      $('closeStudentAttendanceModal').addEventListener('click', closeSessionModal);
+      modal.querySelectorAll('.student-modal-status').forEach((button) => {
+        button.addEventListener('click', async () => {
+          closeSessionModal();
+          await updateStatus(session.session_key, button.dataset.status);
+        });
+      });
     }
 
     function generateCalendarGrid(year, month) {
