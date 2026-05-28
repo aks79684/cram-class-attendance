@@ -2,6 +2,7 @@ const SHEETS = {
   STUDENTS: 'Students',
   SESSIONS: 'Sessions',
   ATTENDANCE: 'Attendance',
+  MESSAGES: 'Messages',
 };
 
 const ADMIN_PASSWORD = 'admin115';
@@ -12,6 +13,11 @@ const ALLOWED_STATUSES = ['attend', 'absent'];
 const SESSION_FIELDS = ['date', 'day', 'time', 'subject', 'teacher', 'type', 'classroom', 'notes', 'visible'];
 const INFO_ONLY_SESSION_KEYS = ['0708', '0725', '0726', '0727', '0728'];
 const HIGHLIGHT_ONLY_SESSION_KEYS = ['0726', '0727'];
+const DEFAULT_HOME_MESSAGES = [
+  ['1', '每天前進一點點', '國考不是一天衝完，是每天多記住一題、多練熟一步。', true, 1],
+  ['2', '記得回覆出席', '老師不是要抓人，是要先幫大家準備位置、器材和冷氣。', true, 2],
+  ['3', '把錯題當線索', '錯題不是失敗紀錄，是提醒你下一次會更穩的路標。', true, 3],
+];
 
 const DEFAULT_SESSIONS = [
   ['0630', '06/30', '二', '下午 13:00-16:00', '局部活動義齒技術學', '謝承勛', 'tutoring', 'C205 正課教室', '', true],
@@ -67,6 +73,8 @@ function routeAction(params) {
       return registerStudent(params);
     case 'listStudentSessions':
       return listStudentSessions(params.student_id, params.password);
+    case 'getHomeMessages':
+      return { messages: homeMessages_() };
     case 'updateAttendance':
       return updateAttendance(params.student_id, params.password, params.session_key, params.status);
     case 'updateAllAttendance':
@@ -91,6 +99,9 @@ function routeAction(params) {
     case 'adminUpdateStudentPassword':
       verifyAdmin(params.password);
       return adminUpdateStudentPassword(params.student_id, params.new_password);
+    case 'adminUpdateHomeMessages':
+      verifyAdmin(params.password);
+      return adminUpdateHomeMessages(params.messages);
     default:
       throw new Error('Unknown action.');
   }
@@ -100,6 +111,7 @@ function ensureSetup() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const students = getOrCreateSheet_(ss, SHEETS.STUDENTS, ['student_id', 'name', 'password_hash', 'year', 'type', 'created_at', 'status']);
   const sessions = getOrCreateSheet_(ss, SHEETS.SESSIONS, ['session_key', 'date', 'day', 'time', 'subject', 'teacher', 'type', 'classroom', 'notes', 'visible']);
+  const messages = getOrCreateSheet_(ss, SHEETS.MESSAGES, ['message_id', 'title', 'body', 'visible', 'sort_order']);
   getOrCreateSheet_(ss, SHEETS.ATTENDANCE, ['student_id', 'session_key', 'status', 'updated_at']);
 
   if (students.getLastRow() === 1 && DEFAULT_STUDENTS.length > 0) {
@@ -111,6 +123,10 @@ function ensureSetup() {
 
   if (sessions.getLastRow() === 1) {
     sessions.getRange(2, 1, DEFAULT_SESSIONS.length, 10).setValues(DEFAULT_SESSIONS);
+  }
+
+  if (messages.getLastRow() === 1) {
+    messages.getRange(2, 1, DEFAULT_HOME_MESSAGES.length, 5).setValues(DEFAULT_HOME_MESSAGES);
   }
 
 }
@@ -231,7 +247,52 @@ function adminSummary() {
   return {
     students,
     sessions: sessions.map((session) => summarizeSession_(session, students, attendance)),
+    messages: homeMessages_(),
   };
+}
+
+function homeMessages_() {
+  return sheetObjects_(sheet_(SHEETS.MESSAGES))
+    .filter((message) => message.visible === true || String(message.visible).toLowerCase() === 'true')
+    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+    .map((message) => ({
+      message_id: clean_(message.message_id),
+      title: clean_(message.title),
+      body: clean_(message.body),
+      visible: true,
+      sort_order: Number(message.sort_order || 0),
+    }))
+    .filter((message) => message.title || message.body);
+}
+
+function adminUpdateHomeMessages(messagesJson) {
+  const messages = JSON.parse(String(messagesJson || '[]'));
+  if (!Array.isArray(messages)) {
+    throw new Error('輪播文案格式錯誤。');
+  }
+
+  const rows = messages
+    .map((message, index) => ({
+      message_id: clean_(message.message_id || String(index + 1)),
+      title: clean_(message.title),
+      body: clean_(message.body),
+      visible: message.visible === true || String(message.visible).toLowerCase() === 'true',
+      sort_order: Number(message.sort_order || index + 1),
+    }))
+    .filter((message) => message.title || message.body)
+    .slice(0, 8)
+    .map((message, index) => [message.message_id || String(index + 1), message.title, message.body, message.visible, index + 1]);
+
+  if (!rows.length) {
+    throw new Error('至少保留一則輪播文案。');
+  }
+
+  const messagesSheet = sheet_(SHEETS.MESSAGES);
+  if (messagesSheet.getLastRow() > 1) {
+    messagesSheet.getRange(2, 1, messagesSheet.getLastRow() - 1, 5).clearContent();
+  }
+  messagesSheet.getRange(2, 1, rows.length, 5).setValues(rows);
+  return adminSummary();
 }
 
 function adminExportData() {

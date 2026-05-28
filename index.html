@@ -53,17 +53,7 @@
     </div>
 
     <section class="mb-6 grid gap-4 md:grid-cols-[1fr_280px]">
-      <div class="rounded-lg bg-white p-5 shadow-sm">
-        <div class="flex flex-wrap items-center gap-2">
-          <span class="rounded bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-800">學生密碼登入</span>
-          <span class="rounded bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">月曆與清單回覆</span>
-          <span class="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">Google Sheets 同步</span>
-        </div>
-        <h2 class="mt-3 text-2xl font-bold">快速確認每堂課是否參加</h2>
-        <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-          學生登入後可用月曆或清單更新出席狀態
-        </p>
-      </div>
+      <div id="homeMessageCarousel" class="rounded-lg bg-white p-5 shadow-sm"></div>
       <div class="rounded-lg bg-slate-900 p-5 text-white shadow-sm">
         <p class="text-xs font-bold text-slate-400">今日</p>
         <div id="todayText" class="mt-1 text-2xl font-bold"></div>
@@ -75,6 +65,7 @@
       <div class="space-y-5">
         <div class="rounded-lg bg-white p-5 shadow-sm">
           <h3 class="text-base font-bold">學生登入</h3>
+          <p class="mt-2 rounded-lg bg-amber-50 p-3 text-sm text-amber-900">如果是第一次使用系統，請點下方「首次註冊」按鈕註冊。</p>
           <form id="studentLoginForm" class="mt-4 space-y-3">
             <div>
               <label class="block text-xs font-bold text-slate-500" for="studentId">學號</label>
@@ -171,6 +162,7 @@
         </div>
         <div id="adminCalendar" class="rounded-lg bg-white p-5 shadow-sm"></div>
         <div id="passwordPanel" class="rounded-lg bg-white p-5 shadow-sm"></div>
+        <div id="homeMessagePanel" class="rounded-lg bg-white p-5 shadow-sm"></div>
         <div id="adminSummary" class="space-y-4"></div>
       </div>
     </section>
@@ -192,6 +184,11 @@
     const WEEKDAYS = ['一', '二', '三', '四', '五', '六', '日'];
     const INFO_ONLY_SESSION_KEYS = ['0708', '0725', '0726', '0727', '0728'];
     const HIGHLIGHT_ONLY_SESSION_KEYS = ['0726', '0727'];
+    const DEFAULT_HOME_MESSAGES = [
+      { message_id: '1', title: '每天前進一點點', body: '國考不是一天衝完，是每天多記住一題、多練熟一步。' },
+      { message_id: '2', title: '記得回覆出席', body: '老師不是要抓人，是要先幫大家準備位置、器材和冷氣。' },
+      { message_id: '3', title: '把錯題當線索', body: '錯題不是失敗紀錄，是提醒你下一次會更穩的路標。' },
+    ];
     const SPECIAL_MARKER_SESSIONS = {
       '0708': { session_key: '0708', date: '07/08', day: '三', time: '視簡章規定時間', subject: '聯合免試', teacher: '全體自主行程', type: 'event', classroom: '校外/自主', notes: '此日期只在月曆標記，不需要回覆參加 / 不參加。', visible: true, editable: false, attendance_required: false },
       '0725': { session_key: '0725', date: '07/25', day: '六', time: '', subject: '國考行程標記', teacher: '', type: 'national_exam', classroom: '', notes: '此日期只在月曆標記，不需要回覆參加 / 不參加。', visible: true, editable: false, attendance_required: false },
@@ -213,6 +210,9 @@
       adminData: null,
       adminMonth: 7,
       selectedAdminDate: '',
+      homeMessages: DEFAULT_HOME_MESSAGES,
+      activeHomeMessage: 0,
+      homeMessageTimer: null,
       mobileBackGuardReady: false,
     };
 
@@ -233,6 +233,8 @@
       if (!isConfigured()) $('configWarning').classList.remove('hidden');
       bindEvents();
       initMobileBackGuard();
+      renderHomeMessages();
+      loadHomeMessages();
       renderTabs();
     });
 
@@ -297,6 +299,67 @@
       $('adminLogout').addEventListener('click', () => {
         if (confirmAdminLogout()) performAdminLogout();
       });
+    }
+
+    async function loadHomeMessages() {
+      if (!isConfigured()) return;
+      try {
+        const response = await api('getHomeMessages', {}, { showOverlay: false });
+        if (response && Array.isArray(response.messages) && response.messages.length) {
+          state.homeMessages = response.messages;
+          state.activeHomeMessage = 0;
+          renderHomeMessages();
+        }
+      } catch (error) {
+        // 首頁輪播不是登入流程的必要條件，讀取失敗時保留預設文案。
+      }
+    }
+
+    function renderHomeMessages() {
+      const container = $('homeMessageCarousel');
+      if (!container) return;
+      const messages = state.homeMessages.length ? state.homeMessages : DEFAULT_HOME_MESSAGES;
+      const active = messages[state.activeHomeMessage % messages.length] || messages[0];
+      container.innerHTML = `
+        <div class="flex h-full flex-col justify-between gap-4">
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="rounded bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-800">學生密碼登入</span>
+              <span class="rounded bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">月曆與清單回覆</span>
+              <span class="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">Google Sheets 同步</span>
+            </div>
+            <div class="mt-4 min-h-[96px] rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <p class="text-xs font-bold text-slate-400">今日提醒</p>
+              <h2 class="mt-2 text-2xl font-bold">${escapeHtml(active.title || '')}</h2>
+              <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">${escapeHtml(active.body || '')}</p>
+            </div>
+          </div>
+          <div class="flex items-center justify-between">
+            <p class="text-xs text-slate-500">第一次使用系統請點下方「首次註冊」按鈕註冊。</p>
+            <div class="flex items-center gap-2">
+              ${messages.map((_, index) => `<button type="button" class="home-message-dot h-2.5 w-2.5 rounded-full ${index === state.activeHomeMessage ? 'bg-indigo-600' : 'bg-slate-300'}" data-message-index="${index}" aria-label="切換提醒 ${index + 1}"></button>`).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+      container.querySelectorAll('[data-message-index]').forEach((button) => {
+        button.addEventListener('click', () => {
+          state.activeHomeMessage = Number(button.dataset.messageIndex);
+          renderHomeMessages();
+          startHomeMessageTimer();
+        });
+      });
+      startHomeMessageTimer();
+    }
+
+    function startHomeMessageTimer() {
+      if (state.homeMessageTimer) window.clearInterval(state.homeMessageTimer);
+      const messages = state.homeMessages.length ? state.homeMessages : DEFAULT_HOME_MESSAGES;
+      if (messages.length < 2) return;
+      state.homeMessageTimer = window.setInterval(() => {
+        state.activeHomeMessage = (state.activeHomeMessage + 1) % messages.length;
+        renderHomeMessages();
+      }, 5000);
     }
 
 
@@ -741,11 +804,10 @@
 
     function studentListHtml() {
       const editable = state.sessions.filter((session) => session.editable);
-      const past = state.sessions.filter((session) => !session.editable);
       return `
         <div class="space-y-5">
           ${sessionListHtml(editable, '可修改課程')}
-          ${sessionListHtml(past, '已過日期')}
+          ${editable.length ? '' : '<p class="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">目前沒有可修改課程。</p>'}
         </div>
       `;
     }
@@ -895,6 +957,10 @@
       try {
         const response = await api('adminSummary', { password: state.adminPassword });
         state.adminData = response;
+        if (response && Array.isArray(response.messages) && response.messages.length) {
+          state.homeMessages = response.messages;
+          renderHomeMessages();
+        }
         const first = response.sessions[0];
         if (first && !state.selectedAdminDate) {
           state.selectedAdminDate = normalizeSessionKey(first.session_key);
@@ -902,6 +968,7 @@
         }
         renderAdminCalendar();
         renderPasswordPanel();
+        renderHomeMessagePanel();
         renderAdminSummary();
       } catch (error) {
         showToast(error.message, 'warning');
@@ -970,6 +1037,95 @@
         showToast('學生密碼已更新。');
       } catch (error) {
         showToast(error.message, 'warning');
+      }
+    }
+
+    function renderHomeMessagePanel() {
+      const messages = state.adminData && Array.isArray(state.adminData.messages) && state.adminData.messages.length
+        ? state.adminData.messages
+        : state.homeMessages;
+      $('homeMessagePanel').innerHTML = `
+        <div class="flex flex-col gap-4">
+          <div>
+            <h4 class="font-bold">首頁輪播文案</h4>
+            <p class="mt-1 text-sm text-slate-500">可放勉勵同學、提醒事項，或一點幽默的話。最多保留 8 則。</p>
+          </div>
+          <form id="homeMessageForm" class="space-y-3">
+            <div id="homeMessageFields" class="space-y-3">
+              ${messages.map((message, index) => homeMessageFieldHtml(message, index)).join('')}
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" id="addHomeMessage" class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200">
+                <i class="fa-solid fa-plus mr-1"></i>新增文案
+              </button>
+              <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500">
+                <i class="fa-solid fa-floppy-disk mr-1"></i>儲存輪播
+              </button>
+            </div>
+          </form>
+        </div>
+      `;
+      $('addHomeMessage').addEventListener('click', () => {
+        const fields = $('homeMessageFields');
+        const count = fields.querySelectorAll('.home-message-row').length;
+        if (count >= 8) return showToast('最多 8 則輪播文案。', 'warning');
+        fields.insertAdjacentHTML('beforeend', homeMessageFieldHtml({ title: '', body: '' }, count));
+        bindHomeMessageRemoveButtons();
+      });
+      $('homeMessageForm').addEventListener('submit', saveHomeMessages);
+      bindHomeMessageRemoveButtons();
+    }
+
+    function homeMessageFieldHtml(message, index) {
+      return `
+        <div class="home-message-row rounded-lg border border-slate-200 bg-slate-50 p-3" data-message-row>
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs font-bold text-slate-500">文案 ${index + 1}</p>
+            <button type="button" class="remove-home-message rounded bg-white px-2 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50">刪除</button>
+          </div>
+          <input class="home-message-title mt-2 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value="${escapeAttr(message.title || '')}" placeholder="標題">
+          <textarea class="home-message-body mt-2 min-h-[72px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="內容">${escapeHtml(message.body || '')}</textarea>
+        </div>
+      `;
+    }
+
+    function bindHomeMessageRemoveButtons() {
+      document.querySelectorAll('.remove-home-message').forEach((button) => {
+        button.onclick = () => {
+          const rows = document.querySelectorAll('.home-message-row');
+          if (rows.length <= 1) return showToast('至少保留一則文案。', 'warning');
+          button.closest('.home-message-row').remove();
+        };
+      });
+    }
+
+    async function saveHomeMessages(event) {
+      event.preventDefault();
+      const messages = Array.from(document.querySelectorAll('.home-message-row')).map((row, index) => ({
+        message_id: String(index + 1),
+        title: row.querySelector('.home-message-title').value.trim(),
+        body: row.querySelector('.home-message-body').value.trim(),
+        visible: true,
+        sort_order: index + 1,
+      })).filter((message) => message.title || message.body);
+      if (!messages.length) return showToast('至少填寫一則輪播文案。', 'warning');
+
+      setLoading($('homeMessageForm'), true);
+      try {
+        const response = await api('adminUpdateHomeMessages', {
+          password: state.adminPassword,
+          messages: JSON.stringify(messages),
+        });
+        state.adminData = response;
+        state.homeMessages = response.messages || messages;
+        state.activeHomeMessage = 0;
+        renderHomeMessages();
+        renderHomeMessagePanel();
+        showToast('首頁輪播文案已更新。');
+      } catch (error) {
+        showToast(error.message, 'warning');
+      } finally {
+        if ($('homeMessageForm')) setLoading($('homeMessageForm'), false);
       }
     }
 
