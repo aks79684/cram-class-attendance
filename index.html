@@ -774,7 +774,7 @@
                 <span class="rounded px-2 py-1 text-xs font-bold ${badgeClass(session.type)}">${typeLabel(session.type)}</span>
               </div>
               <h5 class="mt-2 font-bold">${escapeHtml(session.subject)}</h5>
-              <p class="mt-1 text-sm text-slate-500">${escapeHtml(session.time)} · ${escapeHtml(session.classroom)} · ${escapeHtml(session.teacher)}</p>
+              <p class="mt-1 text-sm text-slate-500">${escapeHtml(session.time)} · ${escapeHtml(session.classroom)} </p>
               ${pending ? savingBadgeHtml() : ''}
               ${session.notes ? `<p class="mt-2 rounded bg-amber-50 p-2 text-sm text-amber-900">${escapeHtml(session.notes)}</p>` : ''}
             </div>
