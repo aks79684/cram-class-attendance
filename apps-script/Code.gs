@@ -397,7 +397,7 @@ function sheetObjects_(sheet) {
       if (header === 'student_id') {
         obj[header] = normalizeStudentId_(row[index]);
       } else if (TEXT_COLUMNS.includes(header)) {
-        obj[header] = clean_(row[index]);
+        obj[header] = normalizeKey_(row[index]);
       } else {
         obj[header] = row[index];
       }
@@ -458,7 +458,8 @@ function clean_(value) {
 }
 
 function normalizeKey_(value) {
-  return clean_(value);
+  const key = clean_(value);
+  return /^\d{1,3}$/.test(key) ? (`000${key}`).slice(-4) : key;
 }
 
 function normalizeStudentId_(value) {
