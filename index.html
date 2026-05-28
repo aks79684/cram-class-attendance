@@ -61,7 +61,7 @@
         </div>
         <h2 class="mt-3 text-2xl font-bold">快速確認每堂課是否參加</h2>
         <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-          學生登入後可用月曆或清單更新出席狀態
+          學生登入後可用月曆或清單更新出席狀態；管理員可查看統計、編輯課程資訊、修改學生密碼並匯出表格。
         </p>
       </div>
       <div class="rounded-lg bg-slate-900 p-5 text-white shadow-sm">
@@ -83,7 +83,7 @@
             <div>
               <label class="block text-xs font-bold text-slate-500" for="studentPassword">個人密碼</label>
               <input id="studentPassword" required type="password" autocomplete="current-password" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
-              <p class="mt-1 text-xs text-slate-500">忘記密碼請聯絡老師/班代在後台重設。</p>
+              <p class="mt-1 text-xs text-slate-500">忘記密碼請請管理員在後台重設。</p>
             </div>
             <button class="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-500" type="submit">
               登入
@@ -93,7 +93,7 @@
 
         <div class="rounded-lg bg-white p-5 shadow-sm">
           <button id="toggleRegister" class="flex w-full items-center justify-between text-left text-base font-bold">
-            <span><i class="fa-solid fa-user-plus mr-2 text-emerald-600"></i>首次註冊</span>
+            <span><i class="fa-solid fa-user-plus mr-2 text-emerald-600"></i>新同學首次登記</span>
             <i class="fa-solid fa-chevron-down text-slate-400"></i>
           </button>
           <form id="registerForm" class="mt-4 hidden space-y-3">
@@ -204,6 +204,7 @@
       adminData: null,
       adminMonth: 7,
       selectedAdminDate: '',
+      mobileBackGuardReady: false,
     };
 
     const $ = (id) => document.getElementById(id);
@@ -222,6 +223,7 @@
 
       if (!isConfigured()) $('configWarning').classList.remove('hidden');
       bindEvents();
+      initMobileBackGuard();
       renderTabs();
     });
 
@@ -277,12 +279,100 @@
       $('refreshAdmin').addEventListener('click', loadAdminSummary);
       $('exportCsv').addEventListener('click', exportExcel);
       $('adminLogout').addEventListener('click', () => {
-        state.adminPassword = '';
-        state.adminData = null;
-        $('adminPassword').value = '';
-        $('adminLoginPanel').classList.remove('hidden');
-        $('adminPanel').classList.add('hidden');
+        if (confirmAdminLogout()) performAdminLogout();
       });
+    }
+
+
+    function isMobileMode() {
+      return window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+    }
+
+    function initMobileBackGuard() {
+      if (!isMobileMode() || state.mobileBackGuardReady) return;
+      state.mobileBackGuardReady = true;
+      try {
+        history.replaceState(Object.assign({}, history.state, { attendanceBase: true }), document.title);
+        history.pushState({ attendanceGuard: true }, document.title);
+      } catch (error) {
+        return;
+      }
+
+      window.addEventListener('popstate', () => {
+        if (!isMobileMode()) return;
+        handleMobileBack();
+      });
+
+      window.addEventListener('beforeunload', (event) => {
+        if (state.student || state.adminData) {
+          event.preventDefault();
+          event.returnValue = '';
+        }
+      });
+    }
+
+    function rearmMobileBackGuard() {
+      if (!isMobileMode()) return;
+      try {
+        history.pushState({ attendanceGuard: true }, document.title);
+      } catch (error) {}
+    }
+
+    function handleMobileBack() {
+      if (isSessionModalOpen()) {
+        closeSessionModal();
+        rearmMobileBackGuard();
+        return;
+      }
+
+      if (state.student) {
+        if (confirmStudentLogout()) performStudentLogout();
+        rearmMobileBackGuard();
+        return;
+      }
+
+      if (state.adminData) {
+        if (confirmAdminLogout()) performAdminLogout();
+        rearmMobileBackGuard();
+        return;
+      }
+
+      // 沒有登入狀態時，第二次返回才交給瀏覽器離開頁面。
+    }
+
+    function isSessionModalOpen() {
+      const modal = $('sessionModal');
+      return modal && !modal.classList.contains('hidden');
+    }
+
+    function confirmStudentLogout() {
+      return window.confirm('確定要登出學生帳號嗎？');
+    }
+
+    function confirmAdminLogout() {
+      return window.confirm('確定要登出管理員嗎？尚未儲存的課程編輯會消失。');
+    }
+
+    function performStudentLogout() {
+      state.student = null;
+      state.studentPassword = '';
+      state.sessions = [];
+      state.pendingSessions = {};
+      const panel = $('studentPanel');
+      if (panel) {
+        panel.innerHTML = '<div class="flex items-center gap-3 text-slate-500"><i class="fa-solid fa-circle-info text-indigo-500"></i><p class="text-sm">登入後即可查看課程月曆與出席回覆。</p></div>';
+      }
+      showToast('已登出學生帳號。');
+    }
+
+    function performAdminLogout() {
+      closeSessionModal();
+      state.adminPassword = '';
+      state.adminData = null;
+      if ($('adminPassword')) $('adminPassword').value = '';
+      if ($('adminLoginPanel')) $('adminLoginPanel').classList.remove('hidden');
+      if ($('adminPanel')) $('adminPanel').classList.add('hidden');
+      showToast('已登出管理員。');
     }
 
     function renderTabs() {
@@ -445,10 +535,7 @@
       `;
 
       $('studentLogout').addEventListener('click', () => {
-        state.student = null;
-        state.studentPassword = '';
-        state.sessions = [];
-        panel.innerHTML = '<div class="flex items-center gap-3 text-slate-500"><i class="fa-solid fa-circle-info text-indigo-500"></i><p class="text-sm">登入後即可查看課程月曆與出席回覆。</p></div>';
+        if (confirmStudentLogout()) performStudentLogout();
       });
       $('markAllAttend').addEventListener('click', markAllAttend);
       panel.querySelectorAll('.student-view').forEach((button) => {
