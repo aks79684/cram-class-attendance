@@ -61,7 +61,7 @@
         </div>
         <h2 class="mt-3 text-2xl font-bold">快速確認每堂課是否參加</h2>
         <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-          學生登入後可用月曆或清單更新出席狀態；管理員可查看統計、編輯課程資訊、修改學生密碼並匯出表格。
+          學生登入後可用月曆或清單更新出席狀態
         </p>
       </div>
       <div class="rounded-lg bg-slate-900 p-5 text-white shadow-sm">
@@ -83,7 +83,7 @@
             <div>
               <label class="block text-xs font-bold text-slate-500" for="studentPassword">個人密碼</label>
               <input id="studentPassword" required type="password" autocomplete="current-password" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
-              <p class="mt-1 text-xs text-slate-500">忘記密碼請請管理員在後台重設。</p>
+              <p class="mt-1 text-xs text-slate-500">忘記密碼請聯絡老師/班代在後台重設。</p>
             </div>
             <button class="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-500" type="submit">
               登入
@@ -93,7 +93,7 @@
 
         <div class="rounded-lg bg-white p-5 shadow-sm">
           <button id="toggleRegister" class="flex w-full items-center justify-between text-left text-base font-bold">
-            <span><i class="fa-solid fa-user-plus mr-2 text-emerald-600"></i>新同學首次登記</span>
+            <span><i class="fa-solid fa-user-plus mr-2 text-emerald-600"></i>首次註冊</span>
             <i class="fa-solid fa-chevron-down text-slate-400"></i>
           </button>
           <form id="registerForm" class="mt-4 hidden space-y-3">
@@ -114,13 +114,7 @@
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-bold text-slate-500" for="regYear">畢業年份</label>
-                <select id="regYear" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                  <option value="113級 (2024)">113級 (2024)</option>
-                  <option value="114級 (2025)">114級 (2025)</option>
-                  <option value="115級 (2026)" selected>115級 (2026)</option>
-                  <option value="116級 (2027)">116級 (2027)</option>
-                  <option value="117級 (2028)">117級 (2028)</option>
-                </select>
+                <select id="regYear" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></select>
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-500" for="regType">班別</label>
@@ -224,10 +218,33 @@
         weekday: 'short',
       }).format(new Date());
 
+      populateGraduationYears();
+
       if (!isConfigured()) $('configWarning').classList.remove('hidden');
       bindEvents();
       renderTabs();
     });
+
+    function populateGraduationYears() {
+      const select = $('regYear');
+      if (!select) return;
+      const now = new Date();
+      const taiwanYear = new Intl.DateTimeFormat('en-CA', {
+        timeZone: TIME_ZONE,
+        year: 'numeric',
+      }).format(now);
+      const currentRocYear = Number(taiwanYear) - 1911;
+      const startRocYear = 95;
+      const endRocYear = Number.isFinite(currentRocYear) && currentRocYear >= startRocYear ? currentRocYear : 115;
+      select.innerHTML = '';
+      for (let year = startRocYear; year <= endRocYear; year += 1) {
+        const option = document.createElement('option');
+        option.value = `${year}年`;
+        option.textContent = `${year}年`;
+        if (year === endRocYear) option.selected = true;
+        select.appendChild(option);
+      }
+    }
 
     function bindEvents() {
       document.querySelectorAll('.tab-button').forEach((button) => {
@@ -452,12 +469,7 @@
       });
       panel.querySelectorAll('[data-date-key]').forEach((button) => {
         button.addEventListener('click', () => {
-          const key = button.dataset.dateKey;
-          state.selectedStudentDate = key;
-          if (window.matchMedia('(max-width: 640px)').matches) {
-            openStudentAttendanceModal(key);
-            return;
-          }
+          state.selectedStudentDate = button.dataset.dateKey;
           renderStudentPanel();
         });
       });
@@ -472,6 +484,7 @@
         <div class="space-y-4 sm:space-y-5">
           ${monthSwitcherHtml(state.studentMonth)}
           ${calendarGridHtml(state.sessions, state.studentMonth, state.selectedStudentDate)}
+          <p class="text-center text-xs font-bold text-slate-500 sm:hidden">點選有課程的日期後，可在下方直接修改出席狀態。</p>
           <div class="rounded-lg bg-slate-950 p-4 text-white sm:p-5">
             ${activeSession ? studentActiveSessionHtml(activeSession) : '<p class="text-sm text-slate-300">請選擇有課程的日期。</p>'}
           </div>
@@ -867,21 +880,9 @@
       event.preventDefault();
       const nextKey = sessionKeyFromDate($('editDate').value.trim());
       try {
-        const response = await api('adminUpdateSession', {
-          password: state.adminPassword,
-          session_key: normalizeSessionKey($('editSessionKey').value),
-          date: $('editDate').value.trim(),
-          day: $('editDay').value.trim(),
-          time: $('editTime').value.trim(),
-          subject: $('editSubject').value.trim(),
-          teacher: $('editTeacher').value.trim(),
-          type: $('editType').value,
-          classroom: $('editClassroom').value.trim(),
-          notes: $('editNotes').value.trim(),
-          visible: true,
-        });
+        const response = await adminUpdateSessionApi();
         state.adminData = response;
-        state.selectedAdminDate = nextKey || $('editSessionKey').value;
+        state.selectedAdminDate = nextKey || normalizeSessionKey($('editSessionKey').value);
         state.adminMonth = Number($('editDate').value.trim().split('/')[0]) || state.adminMonth;
         closeSessionModal();
         renderAdminCalendar();
@@ -890,6 +891,43 @@
       } catch (error) {
         showToast(error.message, 'warning');
       }
+    }
+
+    async function adminUpdateSessionApi() {
+      const originalKey = String($('editSessionKey').value || '').trim();
+      const payload = {
+        password: state.adminPassword,
+        session_key: originalKey,
+        date: $('editDate').value.trim(),
+        day: $('editDay').value.trim(),
+        time: $('editTime').value.trim(),
+        subject: $('editSubject').value.trim(),
+        teacher: $('editTeacher').value.trim(),
+        type: $('editType').value,
+        classroom: $('editClassroom').value.trim(),
+        notes: $('editNotes').value.trim(),
+        visible: true,
+      };
+
+      const candidateKeys = Array.from(new Set([
+        originalKey,
+        normalizeSessionKey(originalKey),
+        legacySessionKey(originalKey),
+        sessionKeyFromDate(payload.date),
+        legacySessionKey(sessionKeyFromDate(payload.date)),
+      ].filter(Boolean)));
+
+      let lastError;
+      for (const key of candidateKeys) {
+        try {
+          return await api('adminUpdateSession', Object.assign({}, payload, { session_key: key }));
+        } catch (error) {
+          lastError = error;
+          const message = String(error.message || '');
+          if (!/找不到|內容|課程|session|not found/i.test(message)) throw error;
+        }
+      }
+      throw lastError || new Error('找不到要更新的課程內容。');
     }
 
     function fieldHtml(id, label, value, placeholder) {
