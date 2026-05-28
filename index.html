@@ -1013,7 +1013,7 @@
                 <i class="fa-brands fa-line mr-1"></i>複製 LINE
               </button>
               <button class="generate-signin rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white hover:bg-emerald-500" data-key="${escapeAttr(session.session_key)}">
-                <i class="fa-solid fa-file-word mr-1"></i>簽到表
+                <i class="fa-solid fa-file-excel mr-1"></i>簽到表
               </button>
             </div>
           </div>
@@ -1220,100 +1220,200 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
       const attend = session.attendance.filter((item) => item.status === 'attend');
       const absent = session.attendance.filter((item) => item.status !== 'attend');
       const rows = attend.length ? attend : session.attendance;
-      const tableRows = rows.map((item, index) => `
-        <tr>
-          <td class="col-index">${index + 1}</td>
-          <td class="col-year">${escapeHtml(item.year || '')}</td>
-          <td class="col-name">${escapeHtml(item.name || '')}</td>
-          <td class="col-sign">&nbsp;</td>
-          <td class="col-note">&nbsp;</td>
-        </tr>
-      `).join('');
-      const absentNames = absent.map((item) => escapeHtml(`${item.name}（${item.year || '未填年份'}）`)).join('、') || '無';
+      const absentNames = absent.map((item) => `${item.name}（${item.year || '未填年份'}）`).join('、') || '無';
       const title = `115衝刺班簽到表_${safeFilePart(sessionDisplayDate(session))}_${safeFilePart(session.subject)}`;
-      const html = `
-<!DOCTYPE html>
-<html lang="zh-Hant">
-<head>
-  <meta charset="UTF-8">
-  <title>${escapeHtml(title)}</title>
-  <style>
-    @page { size: A4; margin: 1.6cm; }
-    body { font-family: "Microsoft JhengHei", "Noto Sans TC", Arial, sans-serif; color: #111827; }
-    h1 { margin: 0 0 12px; text-align: center; font-size: 24px; }
-    .meta { width: 100%; margin: 0 0 14px; border-collapse: collapse; font-size: 13px; }
-    .meta td { border: 1px solid #94a3b8; padding: 7px 9px; }
-    .meta .label { width: 80px; background: #f1f5f9; font-weight: bold; }
-    .signin { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: 14px; }
-    .signin th, .signin td { border: 1.2pt solid #334155; padding: 8px 8px; text-align: center; vertical-align: middle; }
-    .signin th { background: #e2e8f0; font-weight: bold; height: 30px; }
-    .signin tbody td { height: 48px; }
-    .signin .col-index { width: 42px; }
-    .signin .col-year { width: 86px; }
-    .signin .col-name { width: 120px; text-align: left; font-weight: bold; }
-    .signin .col-sign { width: 210px; height: 56px; }
-    .signin .col-note { width: 118px; }
-    .sign-cell { width: 210px; }
-    .note-cell { width: 118px; }
-    .footer { margin-top: 14px; font-size: 12px; line-height: 1.7; color: #475569; }
-  </style>
-</head>
-<body>
-  <h1>115衝刺班簽到表</h1>
-  <table class="meta">
-    <tr>
-      <td class="label">日期</td><td>${escapeHtml(sessionDisplayDate(session))}（${escapeHtml(session.day)}）</td>
-      <td class="label">時間</td><td>${escapeHtml(session.time)}</td>
-    </tr>
-    <tr>
-      <td class="label">課程</td><td colspan="3">${escapeHtml(session.subject)}</td>
-    </tr>
-    <tr>
-      <td class="label">老師</td><td>${escapeHtml(session.teacher)}</td>
-      <td class="label">教室</td><td>${escapeHtml(session.classroom)}</td>
-    </tr>
-    <tr>
-      <td class="label">備註</td><td colspan="3">${escapeHtml(session.notes || '無')}</td>
-    </tr>
-  </table>
-  <table class="signin">
-    <colgroup>
-      <col class="col-index">
-      <col class="col-year">
-      <col class="col-name">
-      <col class="col-sign">
-      <col class="col-note">
-    </colgroup>
-    <thead>
-      <tr>
-        <th class="col-index">序號</th>
-        <th class="col-year">畢業年份</th>
-        <th class="col-name">姓名</th>
-        <th class="col-sign sign-cell">簽到</th>
-        <th class="col-note note-cell">備註</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${tableRows || '<tr><td colspan="5">目前沒有學生資料</td></tr>'}
-    </tbody>
-  </table>
-  <div class="footer">
-    <div>已回覆參加：${attend.length} 人；不參加：${absent.length} 人。</div>
-    <div>不參加名單：${absentNames}</div>
-  </div>
-</body>
-</html>`;
 
-      const blob = new Blob(['\uFEFF' + html], { type: 'application/msword;charset=utf-8;' });
+      const sheetRows = [
+        ['115衝刺班簽到表'],
+        [],
+        ['日期', `${sessionDisplayDate(session)}（${session.day}）`, '時間', session.time || ''],
+        ['課程', session.subject || ''],
+        ['老師', session.teacher || '', '教室', session.classroom || ''],
+        ['備註', session.notes || '無'],
+        [],
+        ['序號', '畢業年份', '姓名', '簽到', '備註'],
+      ];
+      if (rows.length) {
+        rows.forEach((item, index) => {
+          sheetRows.push([String(index + 1), item.year || '', item.name || '', '', '']);
+        });
+      } else {
+        sheetRows.push(['', '', '目前沒有學生資料', '', '']);
+      }
+      sheetRows.push([]);
+      sheetRows.push([`已回覆參加：${attend.length} 人；不參加：${absent.length} 人。`]);
+      sheetRows.push([`不參加名單：${absentNames}`]);
+
+      const blob = createXlsxBlob({
+        sheetName: '簽到表',
+        rows: sheetRows,
+        merges: ['A1:E1', 'B4:E4', 'B6:E6', `A${sheetRows.length - 1}:E${sheetRows.length - 1}`, `A${sheetRows.length}:E${sheetRows.length}`],
+        colWidths: [7, 14, 18, 28, 18],
+      });
+      downloadBlob(blob, `${title}.xlsx`);
+      showToast(`已生成 ${sessionDisplayDate(session)} 簽到表。`);
+    }
+
+    function createXlsxBlob(sheet) {
+      const files = {
+        '[Content_Types].xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>
+  <Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>
+  <Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>
+</Types>`,
+        '_rels/.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>
+</Relationships>`,
+        'xl/workbook.xml': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
+  <sheets><sheet name="${escapeXml(sheet.sheetName)}" sheetId="1" r:id="rId1"/></sheets>
+</workbook>`,
+        'xl/_rels/workbook.xml.rels': `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>
+  <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+</Relationships>`,
+        'xl/styles.xml': xlsxStylesXml(),
+        'xl/worksheets/sheet1.xml': xlsxWorksheetXml(sheet),
+      };
+      return new Blob([zipStore(files)], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    }
+
+    function xlsxWorksheetXml(sheet) {
+      const cols = sheet.colWidths.map((width, index) => `<col min="${index + 1}" max="${index + 1}" width="${width}" customWidth="1"/>`).join('');
+      const rows = sheet.rows.map((row, rowIndex) => {
+        const rowNumber = rowIndex + 1;
+        const height = rowNumber === 1 ? 26 : rowNumber >= 9 && rowNumber <= sheet.rows.length - 3 ? 38 : 22;
+        const cells = row.map((value, colIndex) => xlsxCell(value, rowNumber, colIndex + 1, xlsxStyleFor(rowNumber, colIndex + 1))).join('');
+        return `<row r="${rowNumber}" ht="${height}" customHeight="1">${cells}</row>`;
+      }).join('');
+      const merges = sheet.merges.length ? `<mergeCells count="${sheet.merges.length}">${sheet.merges.map((ref) => `<mergeCell ref="${ref}"/>`).join('')}</mergeCells>` : '';
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <sheetViews><sheetView workbookViewId="0"><pane ySplit="8" topLeftCell="A9" activePane="bottomLeft" state="frozen"/></sheetView></sheetViews>
+  <cols>${cols}</cols>
+  <sheetData>${rows}</sheetData>
+  ${merges}
+  <pageMargins left="0.5" right="0.5" top="0.6" bottom="0.6" header="0.3" footer="0.3"/>
+</worksheet>`;
+    }
+
+    function xlsxCell(value, row, col, style) {
+      const ref = `${columnName(col)}${row}`;
+      return `<c r="${ref}" t="inlineStr" s="${style}"><is><t xml:space="preserve">${escapeXml(value)}</t></is></c>`;
+    }
+
+    function xlsxStyleFor(row, col) {
+      if (row === 1) return 1;
+      if (row >= 3 && row <= 6 && (col === 1 || col === 3)) return 2;
+      if (row === 8) return 2;
+      if (row >= 9) return col === 4 ? 4 : 3;
+      return 0;
+    }
+
+    function xlsxStylesXml() {
+      return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">
+  <fonts count="3"><font><sz val="11"/><name val="Microsoft JhengHei"/></font><font><b/><sz val="16"/><name val="Microsoft JhengHei"/></font><font><b/><sz val="11"/><name val="Microsoft JhengHei"/></font></fonts>
+  <fills count="3"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE2E8F0"/><bgColor indexed="64"/></patternFill></fill></fills>
+  <borders count="2"><border><left/><right/><top/><bottom/><diagonal/></border><border><left style="thin"><color rgb="FF334155"/></left><right style="thin"><color rgb="FF334155"/></right><top style="thin"><color rgb="FF334155"/></top><bottom style="thin"><color rgb="FF334155"/></bottom><diagonal/></border></borders>
+  <cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>
+  <cellXfs count="5">
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0"><alignment vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1"><alignment horizontal="center" vertical="center"/></xf>
+    <xf numFmtId="0" fontId="2" fillId="2" borderId="1" xfId="0" applyFont="1" applyFill="1" applyBorder="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+    <xf numFmtId="0" fontId="0" fillId="0" borderId="1" xfId="0" applyBorder="1"><alignment horizontal="center" vertical="center" wrapText="1"/></xf>
+  </cellXfs>
+</styleSheet>`;
+    }
+
+    function zipStore(files) {
+      const encoder = new TextEncoder();
+      const chunks = [];
+      const central = [];
+      let offset = 0;
+      Object.entries(files).forEach(([path, content]) => {
+        const name = encoder.encode(path);
+        const data = encoder.encode(content);
+        const crc = crc32(data);
+        const local = zipHeader(0x04034b50, name, data.length, crc, offset);
+        chunks.push(local, name, data);
+        central.push(zipHeader(0x02014b50, name, data.length, crc, offset));
+        offset += local.length + name.length + data.length;
+      });
+      const centralOffset = offset;
+      central.forEach((header) => {
+        chunks.push(header.bytes, header.name);
+        offset += header.bytes.length + header.name.length;
+      });
+      chunks.push(zipEnd(central.length, offset - centralOffset, centralOffset));
+      return new Blob(chunks);
+    }
+
+    function zipHeader(signature, name, size, crc, offset) {
+      const central = signature === 0x02014b50;
+      const bytes = new Uint8Array(central ? 46 : 30);
+      const view = new DataView(bytes.buffer);
+      view.setUint32(0, signature, true);
+      if (central) {
+        view.setUint16(4, 20, true); view.setUint16(6, 20, true); view.setUint16(8, 0x0800, true); view.setUint16(10, 0, true);
+        view.setUint32(16, crc, true); view.setUint32(20, size, true); view.setUint32(24, size, true); view.setUint16(28, name.length, true); view.setUint32(42, offset, true);
+        return { bytes, name };
+      }
+      view.setUint16(4, 20, true); view.setUint16(6, 0x0800, true); view.setUint16(8, 0, true);
+      view.setUint32(14, crc, true); view.setUint32(18, size, true); view.setUint32(22, size, true); view.setUint16(26, name.length, true);
+      return bytes;
+    }
+
+    function zipEnd(count, centralSize, centralOffset) {
+      const bytes = new Uint8Array(22);
+      const view = new DataView(bytes.buffer);
+      view.setUint32(0, 0x06054b50, true);
+      view.setUint16(8, count, true);
+      view.setUint16(10, count, true);
+      view.setUint32(12, centralSize, true);
+      view.setUint32(16, centralOffset, true);
+      return bytes;
+    }
+
+    function crc32(data) {
+      let crc = -1;
+      for (let i = 0; i < data.length; i += 1) {
+        crc = (crc >>> 8) ^ CRC_TABLE[(crc ^ data[i]) & 0xff];
+      }
+      return (crc ^ -1) >>> 0;
+    }
+
+    const CRC_TABLE = Array.from({ length: 256 }, (_, index) => {
+      let crc = index;
+      for (let bit = 0; bit < 8; bit += 1) crc = crc & 1 ? 0xedb88320 ^ (crc >>> 1) : crc >>> 1;
+      return crc >>> 0;
+    });
+
+    function columnName(index) {
+      let name = '';
+      while (index > 0) {
+        index -= 1;
+        name = String.fromCharCode(65 + (index % 26)) + name;
+        index = Math.floor(index / 26);
+      }
+      return name;
+    }
+
+    function downloadBlob(blob, filename) {
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `${title}.doc`;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
-      showToast(`已生成 ${sessionDisplayDate(session)} 簽到表。`);
     }
 
     function safeFilePart(value) {
