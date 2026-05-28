@@ -3,6 +3,7 @@ const SHEETS = {
   SESSIONS: 'Sessions',
   ATTENDANCE: 'Attendance',
   MESSAGES: 'Messages',
+  ANNOUNCEMENTS: 'Announcements',
 };
 
 const ADMIN_PASSWORD = 'admin115';
@@ -17,6 +18,10 @@ const DEFAULT_HOME_MESSAGES = [
   ['1', '每天前進一點點', '國考不是一天衝完，是每天多記住一題、多練熟一步。', true, 1],
   ['2', '記得回覆出席', '老師不是要抓人，是要先幫大家準備位置、器材和冷氣。', true, 2],
   ['3', '把錯題當線索', '錯題不是失敗紀錄，是提醒你下一次會更穩的路標。', true, 3],
+];
+const DEFAULT_ANNOUNCEMENTS = [
+  ['1', '請同學完成出席填寫，方便老師統計人數與準備教室。', true, 1],
+  ['2', '課表若有異動，會以老師公告及系統內容為準。', true, 2],
 ];
 
 const DEFAULT_SESSIONS = [
@@ -74,7 +79,7 @@ function routeAction(params) {
     case 'listStudentSessions':
       return listStudentSessions(params.student_id, params.password);
     case 'getHomeMessages':
-      return { messages: homeMessages_() };
+      return { messages: homeMessages_(), announcements: announcements_() };
     case 'updateAttendance':
       return updateAttendance(params.student_id, params.password, params.session_key, params.status);
     case 'updateAllAttendance':
@@ -102,6 +107,9 @@ function routeAction(params) {
     case 'adminUpdateHomeMessages':
       verifyAdmin(params.password);
       return adminUpdateHomeMessages(params.messages);
+    case 'adminUpdateAnnouncements':
+      verifyAdmin(params.password);
+      return adminUpdateAnnouncements(params.announcements);
     default:
       throw new Error('Unknown action.');
   }
@@ -112,6 +120,7 @@ function ensureSetup() {
   const students = getOrCreateSheet_(ss, SHEETS.STUDENTS, ['student_id', 'name', 'password_hash', 'year', 'type', 'created_at', 'status']);
   const sessions = getOrCreateSheet_(ss, SHEETS.SESSIONS, ['session_key', 'date', 'day', 'time', 'subject', 'teacher', 'type', 'classroom', 'notes', 'visible']);
   const messages = getOrCreateSheet_(ss, SHEETS.MESSAGES, ['message_id', 'title', 'body', 'visible', 'sort_order']);
+  const announcements = getOrCreateSheet_(ss, SHEETS.ANNOUNCEMENTS, ['announcement_id', 'body', 'visible', 'sort_order']);
   getOrCreateSheet_(ss, SHEETS.ATTENDANCE, ['student_id', 'session_key', 'status', 'updated_at']);
 
   if (students.getLastRow() === 1 && DEFAULT_STUDENTS.length > 0) {
@@ -127,6 +136,10 @@ function ensureSetup() {
 
   if (messages.getLastRow() === 1) {
     messages.getRange(2, 1, DEFAULT_HOME_MESSAGES.length, 5).setValues(DEFAULT_HOME_MESSAGES);
+  }
+
+  if (announcements.getLastRow() === 1) {
+    announcements.getRange(2, 1, DEFAULT_ANNOUNCEMENTS.length, 4).setValues(DEFAULT_ANNOUNCEMENTS);
   }
 
 }
@@ -248,6 +261,7 @@ function adminSummary() {
     students,
     sessions: sessions.map((session) => summarizeSession_(session, students, attendance)),
     messages: homeMessages_(),
+    announcements: announcements_(),
   };
 }
 
@@ -292,6 +306,48 @@ function adminUpdateHomeMessages(messagesJson) {
     messagesSheet.getRange(2, 1, messagesSheet.getLastRow() - 1, 5).clearContent();
   }
   messagesSheet.getRange(2, 1, rows.length, 5).setValues(rows);
+  return adminSummary();
+}
+
+function announcements_() {
+  return sheetObjects_(sheet_(SHEETS.ANNOUNCEMENTS))
+    .filter((announcement) => announcement.visible === true || String(announcement.visible).toLowerCase() === 'true')
+    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+    .map((announcement) => ({
+      announcement_id: clean_(announcement.announcement_id),
+      body: clean_(announcement.body),
+      visible: true,
+      sort_order: Number(announcement.sort_order || 0),
+    }))
+    .filter((announcement) => announcement.body);
+}
+
+function adminUpdateAnnouncements(announcementsJson) {
+  const announcements = JSON.parse(String(announcementsJson || '[]'));
+  if (!Array.isArray(announcements)) {
+    throw new Error('公告格式錯誤。');
+  }
+
+  const rows = announcements
+    .map((announcement, index) => ({
+      announcement_id: clean_(announcement.announcement_id || String(index + 1)),
+      body: clean_(announcement.body),
+      visible: announcement.visible === true || String(announcement.visible).toLowerCase() === 'true',
+      sort_order: Number(announcement.sort_order || index + 1),
+    }))
+    .filter((announcement) => announcement.body)
+    .slice(0, 10)
+    .map((announcement, index) => [announcement.announcement_id || String(index + 1), announcement.body, announcement.visible, index + 1]);
+
+  if (!rows.length) {
+    throw new Error('至少保留一則公告。');
+  }
+
+  const announcementsSheet = sheet_(SHEETS.ANNOUNCEMENTS);
+  if (announcementsSheet.getLastRow() > 1) {
+    announcementsSheet.getRange(2, 1, announcementsSheet.getLastRow() - 1, 4).clearContent();
+  }
+  announcementsSheet.getRange(2, 1, rows.length, 4).setValues(rows);
   return adminSummary();
 }
 

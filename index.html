@@ -65,6 +65,8 @@
       </div>
     </section>
 
+    <section id="announcementBoard" class="mb-6 rounded-lg bg-white p-5 shadow-sm"></section>
+
     <section id="studentView" class="grid gap-6 lg:grid-cols-[360px_1fr]">
       <div class="space-y-5">
         <div class="rounded-lg bg-white p-5 shadow-sm">
@@ -171,6 +173,7 @@
         <div id="adminCalendar" class="rounded-lg bg-white p-5 shadow-sm"></div>
         <div id="passwordPanel" class="rounded-lg bg-white p-5 shadow-sm"></div>
         <div id="homeMessagePanel" class="rounded-lg bg-white p-5 shadow-sm"></div>
+        <div id="announcementPanel" class="rounded-lg bg-white p-5 shadow-sm"></div>
         <div id="adminSummary" class="space-y-4"></div>
       </div>
     </section>
@@ -197,6 +200,10 @@
       { message_id: '2', title: '記得回覆出席', body: '老師不是要抓人，是要先幫大家準備位置、器材和冷氣。' },
       { message_id: '3', title: '把錯題當線索', body: '錯題不是失敗紀錄，是提醒你下一次會更穩的路標。' },
     ];
+    const DEFAULT_ANNOUNCEMENTS = [
+      { announcement_id: '1', body: '請同學完成出席填寫，方便老師統計人數與準備教室。' },
+      { announcement_id: '2', body: '課表若有異動，會以老師公告及系統內容為準。' },
+    ];
     const SPECIAL_MARKER_SESSIONS = {
       '0708': { session_key: '0708', date: '07/08', day: '三', time: '視簡章規定時間', subject: '聯合免試', teacher: '全體自主行程', type: 'event', classroom: '校外/自主', notes: '此日期只在月曆標記，不需要回覆參加 / 不參加。', visible: true, editable: false, attendance_required: false },
       '0725': { session_key: '0725', date: '07/25', day: '六', time: '', subject: '國考行程標記', teacher: '', type: 'national_exam', classroom: '', notes: '此日期只在月曆標記，不需要回覆參加 / 不參加。', visible: true, editable: false, attendance_required: false },
@@ -219,6 +226,7 @@
       adminMonth: 7,
       selectedAdminDate: '',
       homeMessages: DEFAULT_HOME_MESSAGES,
+      announcements: DEFAULT_ANNOUNCEMENTS,
       activeHomeMessage: 0,
       homeMessageTimer: null,
       mobileBackGuardReady: false,
@@ -243,6 +251,7 @@
       bindEvents();
       initMobileBackGuard();
       renderHomeMessages();
+      renderAnnouncementBoard();
       loadHomeMessages();
       renderTabs();
     });
@@ -325,6 +334,10 @@
           state.activeHomeMessage = 0;
           renderHomeMessages();
         }
+        if (response && Array.isArray(response.announcements) && response.announcements.length) {
+          state.announcements = response.announcements;
+          renderAnnouncementBoard();
+        }
       } catch (error) {
         // 首頁輪播不是登入流程的必要條件，讀取失敗時保留預設文案。
       }
@@ -384,6 +397,27 @@
       if (days > 0) return `${days} 天`;
       if (days === 0) return '就是今天';
       return '已開始';
+    }
+
+    function renderAnnouncementBoard() {
+      const board = $('announcementBoard');
+      if (!board) return;
+      const announcements = state.announcements.length ? state.announcements : DEFAULT_ANNOUNCEMENTS;
+      board.innerHTML = `
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h3 class="text-base font-bold"><i class="fa-solid fa-bullhorn mr-2 text-amber-500"></i>重要事項</h3>
+            <p class="mt-1 text-sm text-slate-500">課程與系統使用提醒</p>
+          </div>
+        </div>
+        <ul class="mt-4 space-y-2">
+          ${announcements.map((announcement) => `
+            <li class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-950">
+              ${escapeHtml(announcement.body || '')}
+            </li>
+          `).join('')}
+        </ul>
+      `;
     }
 
 
@@ -985,6 +1019,10 @@
           state.homeMessages = response.messages;
           renderHomeMessages();
         }
+        if (response && Array.isArray(response.announcements) && response.announcements.length) {
+          state.announcements = response.announcements;
+          renderAnnouncementBoard();
+        }
         const first = response.sessions[0];
         if (first && !state.selectedAdminDate) {
           state.selectedAdminDate = normalizeSessionKey(first.session_key);
@@ -993,6 +1031,7 @@
         renderAdminCalendar();
         renderPasswordPanel();
         renderHomeMessagePanel();
+        renderAnnouncementPanel();
         renderAdminSummary();
       } catch (error) {
         showToast(error.message, 'warning');
@@ -1150,6 +1189,92 @@
         showToast(error.message, 'warning');
       } finally {
         if ($('homeMessageForm')) setLoading($('homeMessageForm'), false);
+      }
+    }
+
+    function renderAnnouncementPanel() {
+      const announcements = state.adminData && Array.isArray(state.adminData.announcements) && state.adminData.announcements.length
+        ? state.adminData.announcements
+        : state.announcements;
+      $('announcementPanel').innerHTML = `
+        <div class="flex flex-col gap-4">
+          <div>
+            <h4 class="font-bold">重要事項佈告欄</h4>
+            <p class="mt-1 text-sm text-slate-500">會顯示在首頁，適合放課程異動、填寫提醒與重要公告。</p>
+          </div>
+          <form id="announcementForm" class="space-y-3">
+            <div id="announcementFields" class="space-y-3">
+              ${announcements.map((announcement, index) => announcementFieldHtml(announcement, index)).join('')}
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" id="addAnnouncement" class="rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200">
+                <i class="fa-solid fa-plus mr-1"></i>新增公告
+              </button>
+              <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500">
+                <i class="fa-solid fa-floppy-disk mr-1"></i>儲存公告
+              </button>
+            </div>
+          </form>
+        </div>
+      `;
+      $('addAnnouncement').addEventListener('click', () => {
+        const fields = $('announcementFields');
+        const count = fields.querySelectorAll('.announcement-row').length;
+        if (count >= 10) return showToast('最多 10 則公告。', 'warning');
+        fields.insertAdjacentHTML('beforeend', announcementFieldHtml({ body: '' }, count));
+        bindAnnouncementRemoveButtons();
+      });
+      $('announcementForm').addEventListener('submit', saveAnnouncements);
+      bindAnnouncementRemoveButtons();
+    }
+
+    function announcementFieldHtml(announcement, index) {
+      return `
+        <div class="announcement-row rounded-lg border border-slate-200 bg-slate-50 p-3" data-announcement-row>
+          <div class="flex items-center justify-between gap-2">
+            <p class="text-xs font-bold text-slate-500">公告 ${index + 1}</p>
+            <button type="button" class="remove-announcement rounded bg-white px-2 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50">刪除</button>
+          </div>
+          <textarea class="announcement-body mt-2 min-h-[72px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="公告內容">${escapeHtml(announcement.body || '')}</textarea>
+        </div>
+      `;
+    }
+
+    function bindAnnouncementRemoveButtons() {
+      document.querySelectorAll('.remove-announcement').forEach((button) => {
+        button.onclick = () => {
+          const rows = document.querySelectorAll('.announcement-row');
+          if (rows.length <= 1) return showToast('至少保留一則公告。', 'warning');
+          button.closest('.announcement-row').remove();
+        };
+      });
+    }
+
+    async function saveAnnouncements(event) {
+      event.preventDefault();
+      const announcements = Array.from(document.querySelectorAll('.announcement-row')).map((row, index) => ({
+        announcement_id: String(index + 1),
+        body: row.querySelector('.announcement-body').value.trim(),
+        visible: true,
+        sort_order: index + 1,
+      })).filter((announcement) => announcement.body);
+      if (!announcements.length) return showToast('至少填寫一則公告。', 'warning');
+
+      setLoading($('announcementForm'), true);
+      try {
+        const response = await api('adminUpdateAnnouncements', {
+          password: state.adminPassword,
+          announcements: JSON.stringify(announcements),
+        });
+        state.adminData = response;
+        state.announcements = response.announcements || announcements;
+        renderAnnouncementBoard();
+        renderAnnouncementPanel();
+        showToast('重要事項已更新。');
+      } catch (error) {
+        showToast(error.message, 'warning');
+      } finally {
+        if ($('announcementForm')) setLoading($('announcementForm'), false);
       }
     }
 
