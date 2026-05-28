@@ -27,7 +27,7 @@
 <body class="min-h-screen bg-slate-100 text-slate-900">
   <header class="bg-slate-950 text-white">
     <div class="mx-auto flex max-w-6xl flex-col gap-3 px-3 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-4 sm:py-5">
-      <div class="flex items-center gap-3">
+      <button id="homeBrand" class="flex items-center gap-3 text-left transition hover:opacity-90" type="button">
         <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-indigo-600 text-xl">
           <i class="fa-solid fa-tooth"></i>
         </div>
@@ -35,7 +35,7 @@
           <h1 class="text-lg font-bold tracking-wide sm:text-xl">115 衝刺班出席系統</h1>
           <p class="text-xs text-slate-400">學生出席回覆與管理員課程彙整</p>
         </div>
-      </div>
+      </button>
       <nav class="grid grid-cols-2 rounded-lg border border-slate-800 bg-slate-900 p-1 sm:flex">
         <button id="studentTab" class="tab-button rounded-md px-4 py-2 text-sm font-bold" data-tab="student">
           <i class="fa-solid fa-user-check mr-1"></i>學生
@@ -68,7 +68,12 @@
     <section id="studentView" class="grid gap-6 lg:grid-cols-[360px_1fr]">
       <div class="space-y-5">
         <div class="rounded-lg bg-white p-5 shadow-sm">
-          <h3 class="text-base font-bold">學生登入</h3>
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <h3 class="text-base font-bold">學生登入</h3>
+            <p class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold leading-5 text-amber-900">
+              初次登入請點下方「首次登入」按鈕
+            </p>
+          </div>
           <form id="studentLoginForm" class="mt-4 space-y-3">
             <div>
               <label class="block text-xs font-bold text-slate-500" for="studentId">學號</label>
@@ -276,6 +281,12 @@
           state.activeTab = button.dataset.tab;
           renderTabs();
         });
+      });
+
+      $('homeBrand').addEventListener('click', () => {
+        state.activeTab = 'student';
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+        renderTabs();
       });
 
       $('studentLoginForm').addEventListener('submit', async (event) => {
