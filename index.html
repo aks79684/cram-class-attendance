@@ -18,6 +18,7 @@
       -webkit-line-clamp: 2;
       -webkit-box-orient: vertical;
     }
+    .mobile-calendar-day { min-height: 54px; }
     @media (max-width: 640px) {
       .safe-bottom { padding-bottom: max(1rem, env(safe-area-inset-bottom)); }
     }
@@ -60,7 +61,7 @@
         </div>
         <h2 class="mt-3 text-2xl font-bold">快速確認每堂課是否參加</h2>
         <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-          學生登入後可用月曆或清單更新出席狀態；管理員可查看統計、編輯課程資訊、修改學生密碼並匯出表格。
+          學生登入後可用月曆或清單更新出席狀態
         </p>
       </div>
       <div class="rounded-lg bg-slate-900 p-5 text-white shadow-sm">
@@ -82,7 +83,7 @@
             <div>
               <label class="block text-xs font-bold text-slate-500" for="studentPassword">個人密碼</label>
               <input id="studentPassword" required type="password" autocomplete="current-password" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
-              <p class="mt-1 text-xs text-slate-500">忘記密碼請請管理員在後台重設。</p>
+              <p class="mt-1 text-xs text-slate-500">忘記密碼請聯絡老師/班代在後台重設。</p>
             </div>
             <button class="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-500" type="submit">
               登入
@@ -92,7 +93,7 @@
 
         <div class="rounded-lg bg-white p-5 shadow-sm">
           <button id="toggleRegister" class="flex w-full items-center justify-between text-left text-base font-bold">
-            <span><i class="fa-solid fa-user-plus mr-2 text-emerald-600"></i>新同學首次登記</span>
+            <span><i class="fa-solid fa-user-plus mr-2 text-emerald-600"></i>首次註冊</span>
             <i class="fa-solid fa-chevron-down text-slate-400"></i>
           </button>
           <form id="registerForm" class="mt-4 hidden space-y-3">
@@ -113,13 +114,7 @@
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-bold text-slate-500" for="regYear">畢業年份</label>
-                <select id="regYear" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                  <option value="113級 (2024)">113級 (2024)</option>
-                  <option value="114級 (2025)">114級 (2025)</option>
-                  <option value="115級 (2026)" selected>115級 (2026)</option>
-                  <option value="116級 (2027)">116級 (2027)</option>
-                  <option value="117級 (2028)">117級 (2028)</option>
-                </select>
+                <select id="regYear" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"></select>
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-500" for="regType">班別</label>
@@ -209,6 +204,7 @@
       adminData: null,
       adminMonth: 7,
       selectedAdminDate: '',
+      mobileBackGuardReady: false,
     };
 
     const $ = (id) => document.getElementById(id);
@@ -223,10 +219,34 @@
         weekday: 'short',
       }).format(new Date());
 
+      populateGraduationYears();
+
       if (!isConfigured()) $('configWarning').classList.remove('hidden');
       bindEvents();
+      initMobileBackGuard();
       renderTabs();
     });
+
+    function populateGraduationYears() {
+      const select = $('regYear');
+      if (!select) return;
+      const now = new Date();
+      const taiwanYear = new Intl.DateTimeFormat('en-CA', {
+        timeZone: TIME_ZONE,
+        year: 'numeric',
+      }).format(now);
+      const currentRocYear = Number(taiwanYear) - 1911;
+      const startRocYear = 95;
+      const endRocYear = Number.isFinite(currentRocYear) && currentRocYear >= startRocYear ? currentRocYear : 115;
+      select.innerHTML = '';
+      for (let year = startRocYear; year <= endRocYear; year += 1) {
+        const option = document.createElement('option');
+        option.value = `${year}年`;
+        option.textContent = `${year}年`;
+        if (year === endRocYear) option.selected = true;
+        select.appendChild(option);
+      }
+    }
 
     function bindEvents() {
       document.querySelectorAll('.tab-button').forEach((button) => {
@@ -259,12 +279,100 @@
       $('refreshAdmin').addEventListener('click', loadAdminSummary);
       $('exportCsv').addEventListener('click', exportExcel);
       $('adminLogout').addEventListener('click', () => {
-        state.adminPassword = '';
-        state.adminData = null;
-        $('adminPassword').value = '';
-        $('adminLoginPanel').classList.remove('hidden');
-        $('adminPanel').classList.add('hidden');
+        if (confirmAdminLogout()) performAdminLogout();
       });
+    }
+
+
+    function isMobileMode() {
+      return window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
+    }
+
+    function initMobileBackGuard() {
+      if (!isMobileMode() || state.mobileBackGuardReady) return;
+      state.mobileBackGuardReady = true;
+      try {
+        history.replaceState(Object.assign({}, history.state, { attendanceBase: true }), document.title);
+        history.pushState({ attendanceGuard: true }, document.title);
+      } catch (error) {
+        return;
+      }
+
+      window.addEventListener('popstate', () => {
+        if (!isMobileMode()) return;
+        handleMobileBack();
+      });
+
+      window.addEventListener('beforeunload', (event) => {
+        if (state.student || state.adminData) {
+          event.preventDefault();
+          event.returnValue = '';
+        }
+      });
+    }
+
+    function rearmMobileBackGuard() {
+      if (!isMobileMode()) return;
+      try {
+        history.pushState({ attendanceGuard: true }, document.title);
+      } catch (error) {}
+    }
+
+    function handleMobileBack() {
+      if (isSessionModalOpen()) {
+        closeSessionModal();
+        rearmMobileBackGuard();
+        return;
+      }
+
+      if (state.student) {
+        if (confirmStudentLogout()) performStudentLogout();
+        rearmMobileBackGuard();
+        return;
+      }
+
+      if (state.adminData) {
+        if (confirmAdminLogout()) performAdminLogout();
+        rearmMobileBackGuard();
+        return;
+      }
+
+      // 沒有登入狀態時，第二次返回才交給瀏覽器離開頁面。
+    }
+
+    function isSessionModalOpen() {
+      const modal = $('sessionModal');
+      return modal && !modal.classList.contains('hidden');
+    }
+
+    function confirmStudentLogout() {
+      return window.confirm('確定要登出學生帳號嗎？');
+    }
+
+    function confirmAdminLogout() {
+      return window.confirm('確定要登出管理員嗎？尚未儲存的課程編輯會消失。');
+    }
+
+    function performStudentLogout() {
+      state.student = null;
+      state.studentPassword = '';
+      state.sessions = [];
+      state.pendingSessions = {};
+      const panel = $('studentPanel');
+      if (panel) {
+        panel.innerHTML = '<div class="flex items-center gap-3 text-slate-500"><i class="fa-solid fa-circle-info text-indigo-500"></i><p class="text-sm">登入後即可查看課程月曆與出席回覆。</p></div>';
+      }
+      showToast('已登出學生帳號。');
+    }
+
+    function performAdminLogout() {
+      closeSessionModal();
+      state.adminPassword = '';
+      state.adminData = null;
+      if ($('adminPassword')) $('adminPassword').value = '';
+      if ($('adminLoginPanel')) $('adminLoginPanel').classList.remove('hidden');
+      if ($('adminPanel')) $('adminPanel').classList.add('hidden');
+      showToast('已登出管理員。');
     }
 
     function renderTabs() {
@@ -427,10 +535,7 @@
       `;
 
       $('studentLogout').addEventListener('click', () => {
-        state.student = null;
-        state.studentPassword = '';
-        state.sessions = [];
-        panel.innerHTML = '<div class="flex items-center gap-3 text-slate-500"><i class="fa-solid fa-circle-info text-indigo-500"></i><p class="text-sm">登入後即可查看課程月曆與出席回覆。</p></div>';
+        if (confirmStudentLogout()) performStudentLogout();
       });
       $('markAllAttend').addEventListener('click', markAllAttend);
       panel.querySelectorAll('.student-view').forEach((button) => {
@@ -466,6 +571,7 @@
         <div class="space-y-4 sm:space-y-5">
           ${monthSwitcherHtml(state.studentMonth)}
           ${calendarGridHtml(state.sessions, state.studentMonth, state.selectedStudentDate)}
+          <p class="text-center text-xs font-bold text-slate-500 sm:hidden">點選有課程的日期後，可在下方直接修改出席狀態。</p>
           <div class="rounded-lg bg-slate-950 p-4 text-white sm:p-5">
             ${activeSession ? studentActiveSessionHtml(activeSession) : '<p class="text-sm text-slate-300">請選擇有課程的日期。</p>'}
           </div>
@@ -861,21 +967,9 @@
       event.preventDefault();
       const nextKey = sessionKeyFromDate($('editDate').value.trim());
       try {
-        const response = await api('adminUpdateSession', {
-          password: state.adminPassword,
-          session_key: normalizeSessionKey($('editSessionKey').value),
-          date: $('editDate').value.trim(),
-          day: $('editDay').value.trim(),
-          time: $('editTime').value.trim(),
-          subject: $('editSubject').value.trim(),
-          teacher: $('editTeacher').value.trim(),
-          type: $('editType').value,
-          classroom: $('editClassroom').value.trim(),
-          notes: $('editNotes').value.trim(),
-          visible: true,
-        });
+        const response = await adminUpdateSessionApi();
         state.adminData = response;
-        state.selectedAdminDate = nextKey || $('editSessionKey').value;
+        state.selectedAdminDate = nextKey || normalizeSessionKey($('editSessionKey').value);
         state.adminMonth = Number($('editDate').value.trim().split('/')[0]) || state.adminMonth;
         closeSessionModal();
         renderAdminCalendar();
@@ -884,6 +978,43 @@
       } catch (error) {
         showToast(error.message, 'warning');
       }
+    }
+
+    async function adminUpdateSessionApi() {
+      const originalKey = String($('editSessionKey').value || '').trim();
+      const payload = {
+        password: state.adminPassword,
+        session_key: originalKey,
+        date: $('editDate').value.trim(),
+        day: $('editDay').value.trim(),
+        time: $('editTime').value.trim(),
+        subject: $('editSubject').value.trim(),
+        teacher: $('editTeacher').value.trim(),
+        type: $('editType').value,
+        classroom: $('editClassroom').value.trim(),
+        notes: $('editNotes').value.trim(),
+        visible: true,
+      };
+
+      const candidateKeys = Array.from(new Set([
+        originalKey,
+        normalizeSessionKey(originalKey),
+        legacySessionKey(originalKey),
+        sessionKeyFromDate(payload.date),
+        legacySessionKey(sessionKeyFromDate(payload.date)),
+      ].filter(Boolean)));
+
+      let lastError;
+      for (const key of candidateKeys) {
+        try {
+          return await api('adminUpdateSession', Object.assign({}, payload, { session_key: key }));
+        } catch (error) {
+          lastError = error;
+          const message = String(error.message || '');
+          if (!/找不到|內容|課程|session|not found/i.test(message)) throw error;
+        }
+      }
+      throw lastError || new Error('找不到要更新的課程內容。');
     }
 
     function fieldHtml(id, label, value, placeholder) {
@@ -980,13 +1111,10 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
       }, {});
       const selected = normalizeSessionKey(selectedKey);
       const days = generateCalendarGrid(DEFAULT_YEAR, month);
-      const monthSessions = Object.entries(byDate)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([, session]) => session);
       return `
         <div class="rounded-lg border border-slate-200 bg-white p-3 sm:p-4">
           <div class="sm:hidden">
-            ${mobileMonthAgendaHtml(monthSessions, selected, adminMode)}
+            ${mobileCalendarGridHtml(days, byDate, month, selected, adminMode)}
           </div>
           <div class="hidden sm:block">
             <div class="mb-2 grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-400">
@@ -1020,38 +1148,90 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
       `;
     }
 
-    function mobileMonthAgendaHtml(sessions, selectedKey, adminMode = false) {
-      if (!sessions.length) return '<p class="rounded-lg bg-slate-50 p-4 text-sm text-slate-500">這個月份沒有課程。</p>';
+    function mobileCalendarGridHtml(days, byDate, month, selectedKey, adminMode = false) {
       return `
-        <div class="space-y-2">
-          ${sessions.map((session) => {
-            const key = normalizeSessionKey(session.session_key);
-            const selected = selectedKey === key;
-            const status = normalizeStatus(session.status);
-            const pending = isSessionPending(session.session_key);
-            const statusText = adminMode ? `${session.counts.attend}/${session.attendance.length} 參加` : status === 'attend' ? '參加' : '不參加';
-            const statusPill = adminMode ? 'bg-indigo-100 text-indigo-700' : status === 'attend' ? 'bg-emerald-100 text-emerald-700' : 'bg-rose-100 text-rose-700';
-            return `
-              <button type="button" class="w-full rounded-xl border p-3 text-left transition ${selected ? 'border-indigo-500 bg-indigo-50 ring-2 ring-indigo-100' : 'border-slate-200 bg-white hover:bg-slate-50'}" data-date-key="${escapeAttr(key)}">
-                <div class="flex items-start gap-3">
-                  <div class="flex h-12 w-12 shrink-0 flex-col items-center justify-center rounded-xl bg-slate-900 text-white">
-                    <span class="text-base font-bold leading-none">${Number(key.slice(2, 4))}</span>
-                    <span class="mt-1 text-[10px] leading-none">${escapeHtml(session.day)}</span>
-                  </div>
-                  <div class="min-w-0 flex-1">
-                    <div class="flex items-start justify-between gap-2">
-                      <h5 class="break-words text-sm font-bold leading-5 text-slate-900">${escapeHtml(session.subject)}</h5>
-                      <span class="shrink-0 rounded-full px-2 py-1 text-[11px] font-bold ${statusPill}">${pending ? '儲存中' : statusText}</span>
-                    </div>
-                    <p class="mt-1 text-xs leading-5 text-slate-500">${escapeHtml(session.time || '')} · ${escapeHtml(session.classroom || '')}</p>
-                    ${session.teacher ? `<p class="text-xs text-slate-500">${escapeHtml(session.teacher)}</p>` : ''}
-                  </div>
-                </div>
-              </button>
-            `;
-          }).join('')}
+        <div>
+          <div class="mb-2 grid grid-cols-7 gap-1 text-center text-[11px] font-bold text-slate-400">
+            ${WEEKDAYS.map((day) => `<div class="${day === '日' ? 'text-rose-500' : day === '六' ? 'text-indigo-600' : ''}">${day}</div>`).join('')}
+          </div>
+          <div class="grid grid-cols-7 gap-1">
+            ${days.map((day) => {
+              if (!day) return '<div class="mobile-calendar-day rounded-lg border border-dashed border-slate-100 bg-slate-50/60"></div>';
+              const key = `${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
+              const session = byDate[key];
+              const isSelected = selectedKey === key;
+              const status = session ? normalizeStatus(session.status) : '';
+              const pending = session && isSessionPending(session.session_key);
+              const statusClass = adminMode && session ? 'border-indigo-200 bg-indigo-50 text-indigo-900' : status === 'attend' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : session ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-slate-200 bg-white text-slate-400 opacity-60';
+              const dot = adminMode && session ? 'bg-indigo-500' : status === 'attend' ? 'bg-emerald-500' : session ? 'bg-rose-500' : '';
+              const label = session ? escapeAttr(`${session.date} ${session.subject}`) : '';
+              const title = session ? escapeHtml(shortSubject(session.subject)) : '';
+              return `
+                <button type="button" class="mobile-calendar-day relative flex flex-col items-center justify-start gap-1 rounded-lg border px-1 py-1.5 text-center transition ${statusClass} ${isSelected ? 'ring-2 ring-indigo-600' : ''} ${session ? 'active:scale-[0.98]' : 'cursor-default'}" ${session ? `data-date-key="${escapeAttr(key)}"` : 'disabled'} aria-label="${label}">
+                  <span class="text-xs font-bold leading-none">${day}</span>
+                  ${pending ? '<span class="h-3 w-3 animate-spin rounded-full border-2 border-white border-t-indigo-600"></span>' : session ? `<span class="h-1.5 w-1.5 rounded-full ${dot}"></span>` : '<span class="h-1.5 w-1.5"></span>'}
+                  ${session ? `<span class="line-clamp-2 max-w-full text-[10px] font-bold leading-[1.15]">${title}</span>` : ''}
+                </button>
+              `;
+            }).join('')}
+          </div>
         </div>
       `;
+    }
+
+    function shortSubject(subject) {
+      const text = String(subject || '').replace(/\s+/g, '');
+      return text.length > 8 ? `${text.slice(0, 8)}…` : text;
+    }
+
+    function openStudentAttendanceModal(sessionKey) {
+      const session = state.sessions.find((item) => normalizeSessionKey(item.session_key) === normalizeSessionKey(sessionKey));
+      if (!session) return;
+      const current = normalizeStatus(session.status);
+      const pending = isSessionPending(session.session_key);
+      const editable = session.editable !== false && !pending;
+      const modal = $('sessionModal');
+      modal.innerHTML = `
+        <div class="w-full max-w-md overflow-hidden rounded-2xl bg-white shadow-2xl">
+          <div class="flex items-start justify-between bg-slate-950 p-4 text-white">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded bg-indigo-700 px-2 py-1 text-xs font-bold">${escapeHtml(session.date)} (${escapeHtml(session.day)})</span>
+                <span class="text-xs text-slate-300">${escapeHtml(session.time || '')}</span>
+              </div>
+              <h4 class="mt-2 text-lg font-bold text-amber-300">${escapeHtml(session.subject)}</h4>
+            </div>
+            <button id="closeStudentAttendanceModal" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-white hover:bg-slate-700">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+          <div class="space-y-4 p-4">
+            <div class="rounded-xl bg-slate-50 p-3 text-sm text-slate-600">
+              <p>${escapeHtml(session.classroom || '')} ${session.teacher ? `· ${escapeHtml(session.teacher)}` : ''}</p>
+              ${session.notes ? `<p class="mt-2 rounded-lg bg-amber-50 p-2 text-amber-900">${escapeHtml(session.notes)}</p>` : ''}
+              ${session.editable === false ? '<p class="mt-2 font-bold text-slate-500">此課程日期已過，不能修改。</p>' : ''}
+              ${pending ? '<p class="mt-2 font-bold text-indigo-600">儲存中，請稍候。</p>' : ''}
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <button class="student-modal-status rounded-xl px-4 py-4 text-base font-bold ${current === 'attend' ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600'} ${editable ? '' : 'opacity-60 cursor-not-allowed'}" data-status="attend" ${editable ? '' : 'disabled'}>
+                <i class="fa-solid fa-circle-check mr-1"></i>參加
+              </button>
+              <button class="student-modal-status rounded-xl px-4 py-4 text-base font-bold ${current === 'absent' ? 'bg-rose-600 text-white' : 'bg-slate-100 text-slate-600'} ${editable ? '' : 'opacity-60 cursor-not-allowed'}" data-status="absent" ${editable ? '' : 'disabled'}>
+                <i class="fa-solid fa-circle-xmark mr-1"></i>不參加
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      $('closeStudentAttendanceModal').addEventListener('click', closeSessionModal);
+      modal.querySelectorAll('.student-modal-status').forEach((button) => {
+        button.addEventListener('click', async () => {
+          closeSessionModal();
+          await updateStatus(session.session_key, button.dataset.status);
+        });
+      });
     }
 
     function generateCalendarGrid(year, month) {
