@@ -7,6 +7,7 @@ const SHEETS = {
 const ADMIN_PASSWORD = 'admin115';
 const TIME_ZONE = 'Asia/Taipei';
 const DEFAULT_YEAR = 2026;
+const TEXT_COLUMNS = ['student_id', 'session_key'];
 
 const DEFAULT_SESSIONS = [
   ['0630', '06/30', '二', '下午 13:00-16:00', '局部活動義齒技術學', '謝承勛', 'tutoring', 'C205 正課教室', '', true],
@@ -239,7 +240,7 @@ function findActiveStudent_(studentId, password) {
 }
 
 function findSession_(sessionKey) {
-  const session = visibleSessions_().find((item) => item.session_key === clean_(sessionKey));
+  const session = visibleSessions_().find((item) => item.session_key === normalizeKey_(sessionKey));
   if (!session) {
     throw new Error('找不到此課程。');
   }
@@ -248,8 +249,9 @@ function findSession_(sessionKey) {
 
 function visibleSessions_() {
   return sheetObjects_(sheet_(SHEETS.SESSIONS))
+    .map((session) => Object.assign({}, session, { session_key: normalizeKey_(session.session_key) }))
     .filter((session) => session.visible === true || String(session.visible).toLowerCase() === 'true')
-    .sort((a, b) => a.session_key.localeCompare(b.session_key));
+    .sort((a, b) => normalizeKey_(a.session_key).localeCompare(normalizeKey_(b.session_key)));
 }
 
 function upsertAttendance_(studentId, sessionKey, status) {
@@ -296,7 +298,7 @@ function sheetObjects_(sheet) {
   return values.slice(1).filter((row) => row.some((cell) => cell !== '')).map((row) => {
     const obj = {};
     headers.forEach((header, index) => {
-      obj[header] = row[index];
+      obj[header] = TEXT_COLUMNS.includes(header) ? clean_(row[index]) : row[index];
     });
     return obj;
   });
@@ -352,6 +354,10 @@ function now_() {
 
 function clean_(value) {
   return String(value || '').trim();
+}
+
+function normalizeKey_(value) {
+  return clean_(value);
 }
 
 function sanitizeCallback(callback) {

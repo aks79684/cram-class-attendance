@@ -507,6 +507,10 @@ ${absent.map((item) => item.name).join('、') || '暫無'}`;
         const callback = `attendanceCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         const script = document.createElement('script');
         const query = new URLSearchParams(Object.assign({}, params, { action, callback }));
+        const timeout = window.setTimeout(() => {
+          cleanup();
+          reject(new Error('Apps Script 沒有回應。請確認 Web App 已用「新增版本」重新部署，且存取權限是「任何人」。'));
+        }, 12000);
 
         window[callback] = (payload) => {
           cleanup();
@@ -520,6 +524,7 @@ ${absent.map((item) => item.name).join('、') || '暫無'}`;
         };
 
         function cleanup() {
+          window.clearTimeout(timeout);
           delete window[callback];
           script.remove();
         }
