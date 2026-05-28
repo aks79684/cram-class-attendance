@@ -8,6 +8,8 @@ const ADMIN_PASSWORD = 'admin115';
 const TIME_ZONE = 'Asia/Taipei';
 const DEFAULT_YEAR = 2026;
 const TEXT_COLUMNS = ['student_id', 'session_key'];
+const ALLOWED_STATUSES = ['attend', 'absent'];
+const SESSION_FIELDS = ['date', 'day', 'time', 'subject', 'teacher', 'type', 'classroom', 'notes', 'visible'];
 
 const DEFAULT_SESSIONS = [
   ['0630', '06/30', '二', '下午 13:00-16:00', '局部活動義齒技術學', '謝承勛', 'tutoring', 'C205 正課教室', '', true],
@@ -70,6 +72,8 @@ function routeAction(params) {
       return listStudentSessions(params.student_id, params.password);
     case 'updateAttendance':
       return updateAttendance(params.student_id, params.password, params.session_key, params.status);
+    case 'updateAllAttendance':
+      return updateAllAttendance(params.student_id, params.password);
     case 'adminLogin':
       verifyAdmin(params.password);
       return { authenticated: true };
@@ -79,6 +83,12 @@ function routeAction(params) {
     case 'adminExportData':
       verifyAdmin(params.password);
       return adminExportData();
+    case 'adminUpdateSession':
+      verifyAdmin(params.password);
+      return adminUpdateSession(params);
+    case 'adminUpdateStudentPassword':
+      verifyAdmin(params.password);
+      return adminUpdateStudentPassword(params.student_id, params.new_password);
     default:
       throw new Error('Unknown action.');
   }
@@ -109,11 +119,11 @@ function loginStudent(studentId, password) {
 }
 
 function registerStudent(params) {
-  const studentId = clean_(params.student_id);
+  const studentId = normalizeStudentId_(params.student_id);
   const name = clean_(params.name);
   const password = String(params.password || '');
   const year = clean_(params.year || '115級 (2026)');
-  const type = clean_(params.type || '在職專班');
+  const type = clean_(params.type || '甲班');
 
   if (!studentId || !name || !password) {
     throw new Error('學號、姓名與密碼都必填。');
@@ -121,7 +131,7 @@ function registerStudent(params) {
 
   const studentsSheet = sheet_(SHEETS.STUDENTS);
   const students = sheetObjects_(studentsSheet);
-  if (students.some((student) => String(student.student_id) === studentId)) {
+  if (students.some((student) => normalizeStudentId_(student.student_id) === studentId)) {
     throw new Error('此學號已經登記。');
   }
 
@@ -136,8 +146,7 @@ function listStudentSessions(studentId, password) {
 
 function updateAttendance(studentId, password, sessionKey, status) {
   const student = findActiveStudent_(studentId, password);
-  const allowedStatuses = ['attend', 'tentative', 'absent'];
-  if (!allowedStatuses.includes(status)) {
+  if (!ALLOWED_STATUSES.includes(status)) {
     throw new Error('出席狀態格式錯誤。');
   }
 
@@ -150,6 +159,14 @@ function updateAttendance(studentId, password, sessionKey, status) {
   }
 
   upsertAttendance_(student.student_id, session.session_key, status);
+  return { student, sessions: sessionPayloadForStudent_(student.student_id) };
+}
+
+function updateAllAttendance(studentId, password) {
+  const student = findActiveStudent_(studentId, password);
+  visibleSessions_().filter(isEditableSession_).forEach((session) => {
+    upsertAttendance_(student.student_id, session.session_key, 'attend');
+  });
   return { student, sessions: sessionPayloadForStudent_(student.student_id) };
 }
 
@@ -190,8 +207,9 @@ function summarizeSession_(session, students, attendance) {
     return {
       student_id: student.student_id,
       name: student.name,
+      year: student.year,
       type: student.type,
-      status: found ? found.status : 'absent',
+      status: normalizeStatus_(found ? found.status : 'absent'),
       updated_at: found ? found.updated_at : '',
     };
   });
@@ -201,7 +219,6 @@ function summarizeSession_(session, students, attendance) {
     attendance: rows,
     counts: {
       attend: rows.filter((row) => row.status === 'attend').length,
-      tentative: rows.filter((row) => row.status === 'tentative').length,
       absent: rows.filter((row) => row.status === 'absent').length,
     },
   });
@@ -212,7 +229,7 @@ function sessionPayloadForStudent_(studentId) {
   return visibleSessions_().map((session) => {
     const found = attendance.find((row) => row.session_key === session.session_key);
     return Object.assign({}, session, {
-      status: found ? found.status : 'absent',
+      status: normalizeStatus_(found ? found.status : 'absent'),
       editable: isEditableSession_(session),
       is_tomorrow: isTomorrow_(session),
     });
@@ -220,13 +237,13 @@ function sessionPayloadForStudent_(studentId) {
 }
 
 function findActiveStudent_(studentId, password) {
-  const id = clean_(studentId);
+  const id = normalizeStudentId_(studentId);
   if (!id || !password) {
     throw new Error('請輸入學號與密碼。');
   }
 
   const students = sheetObjects_(sheet_(SHEETS.STUDENTS));
-  const student = students.find((item) => item.student_id === id && item.status === 'active');
+  const student = students.find((item) => normalizeStudentId_(item.student_id) === id && item.status === 'active');
   if (!student || student.password_hash !== hash_(String(password))) {
     throw new Error('學號或密碼錯誤。');
   }
@@ -258,15 +275,94 @@ function upsertAttendance_(studentId, sessionKey, status) {
   const attendanceSheet = sheet_(SHEETS.ATTENDANCE);
   const values = attendanceSheet.getDataRange().getValues();
   const now = now_();
+  const id = normalizeStudentId_(studentId);
+  const key = normalizeKey_(sessionKey);
+  const normalizedStatus = normalizeStatus_(status);
 
   for (let i = 1; i < values.length; i += 1) {
-    if (String(values[i][0]) === studentId && String(values[i][1]) === sessionKey) {
-      attendanceSheet.getRange(i + 1, 3, 1, 2).setValues([[status, now]]);
+    if (normalizeStudentId_(values[i][0]) === id && normalizeKey_(values[i][1]) === key) {
+      attendanceSheet.getRange(i + 1, 1, 1, 4).setValues([[id, key, normalizedStatus, now]]);
       return;
     }
   }
 
-  attendanceSheet.appendRow([studentId, sessionKey, status, now]);
+  attendanceSheet.appendRow([id, key, normalizedStatus, now]);
+}
+
+function adminUpdateSession(params) {
+  const sessionKey = normalizeKey_(params.session_key);
+  if (!sessionKey) {
+    throw new Error('缺少課程代碼。');
+  }
+
+  const sessionsSheet = sheet_(SHEETS.SESSIONS);
+  const values = sessionsSheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  const keyIndex = headers.indexOf('session_key');
+  if (keyIndex === -1) {
+    throw new Error('Sessions 缺少 session_key 欄位。');
+  }
+
+  for (let i = 1; i < values.length; i += 1) {
+    if (normalizeKey_(values[i][keyIndex]) !== sessionKey) continue;
+    const nextKey = params.date ? sessionKeyFromDate_(params.date) : sessionKey;
+    if (nextKey && nextKey !== sessionKey) {
+      sessionsSheet.getRange(i + 1, keyIndex + 1).setValue(nextKey);
+      updateAttendanceSessionKey_(sessionKey, nextKey);
+    }
+    SESSION_FIELDS.forEach((field) => {
+      const columnIndex = headers.indexOf(field);
+      if (columnIndex !== -1 && Object.prototype.hasOwnProperty.call(params, field)) {
+        let value = params[field];
+        if (field === 'visible') {
+          value = value === true || String(value).toLowerCase() === 'true';
+        }
+        sessionsSheet.getRange(i + 1, columnIndex + 1).setValue(value);
+      }
+    });
+    return adminSummary();
+  }
+
+  throw new Error('找不到此課程。');
+}
+
+function updateAttendanceSessionKey_(oldKey, newKey) {
+  const attendanceSheet = sheet_(SHEETS.ATTENDANCE);
+  const values = attendanceSheet.getDataRange().getValues();
+  if (values.length < 2) return;
+
+  for (let i = 1; i < values.length; i += 1) {
+    if (normalizeKey_(values[i][1]) === oldKey) {
+      attendanceSheet.getRange(i + 1, 2).setValue(newKey);
+    }
+  }
+}
+
+function adminUpdateStudentPassword(studentId, newPassword) {
+  const id = normalizeStudentId_(studentId);
+  const password = String(newPassword || '');
+  if (!id || !password) {
+    throw new Error('請輸入學號與新密碼。');
+  }
+
+  const studentsSheet = sheet_(SHEETS.STUDENTS);
+  const values = studentsSheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  const idIndex = headers.indexOf('student_id');
+  const passwordIndex = headers.indexOf('password_hash');
+  if (idIndex === -1 || passwordIndex === -1) {
+    throw new Error('Students 欄位設定不完整。');
+  }
+
+  for (let i = 1; i < values.length; i += 1) {
+    if (normalizeStudentId_(values[i][idIndex]) === id) {
+      studentsSheet.getRange(i + 1, idIndex + 1).setValue(id);
+      studentsSheet.getRange(i + 1, passwordIndex + 1).setValue(hash_(password));
+      return adminSummary();
+    }
+  }
+
+  throw new Error('找不到此學生。');
 }
 
 function verifyAdmin(password) {
@@ -298,7 +394,13 @@ function sheetObjects_(sheet) {
   return values.slice(1).filter((row) => row.some((cell) => cell !== '')).map((row) => {
     const obj = {};
     headers.forEach((header, index) => {
-      obj[header] = TEXT_COLUMNS.includes(header) ? clean_(row[index]) : row[index];
+      if (header === 'student_id') {
+        obj[header] = normalizeStudentId_(row[index]);
+      } else if (TEXT_COLUMNS.includes(header)) {
+        obj[header] = clean_(row[index]);
+      } else {
+        obj[header] = row[index];
+      }
     });
     return obj;
   });
@@ -335,9 +437,8 @@ function sameDate_(a, b) {
 }
 
 function statusLabel_(status) {
-  if (status === 'attend') return '出席';
-  if (status === 'tentative') return '待定';
-  return '不出席';
+  if (normalizeStatus_(status) === 'attend') return '參加';
+  return '不參加';
 }
 
 function hash_(value) {
@@ -358,6 +459,22 @@ function clean_(value) {
 
 function normalizeKey_(value) {
   return clean_(value);
+}
+
+function normalizeStudentId_(value) {
+  return clean_(value).toUpperCase();
+}
+
+function normalizeStatus_(value) {
+  return value === 'attend' ? 'attend' : 'absent';
+}
+
+function sessionKeyFromDate_(dateText) {
+  const parts = String(dateText || '').split('/');
+  if (parts.length < 2) {
+    return normalizeKey_(String(dateText || '').replace('/', ''));
+  }
+  return `${(`0${Number(parts[0])}`).slice(-2)}${(`0${Number(parts[1])}`).slice(-2)}`;
 }
 
 function sanitizeCallback(callback) {

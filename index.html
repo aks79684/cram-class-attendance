@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>115 牙體技術師國考衝刺班 - 出席統計</title>
+  <title>115 衝刺班出席系統</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,7 +11,9 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
     body { font-family: 'Noto Sans TC', system-ui, sans-serif; }
-    .status-button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(15, 23, 42, 0.28); }
+    .status-button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(15, 23, 42, 0.26); }
+    .calendar-day { min-height: 76px; }
+    @media (max-width: 640px) { .calendar-day { min-height: 58px; } }
   </style>
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-900">
@@ -22,16 +24,16 @@
           <i class="fa-solid fa-tooth"></i>
         </div>
         <div>
-          <h1 class="text-lg font-bold tracking-wide sm:text-xl">115 牙體技術師國考衝刺班</h1>
-          <p class="text-xs text-slate-400">隔日上課出席回報與幹部統計</p>
+          <h1 class="text-lg font-bold tracking-wide sm:text-xl">115 衝刺班出席系統</h1>
+          <p class="text-xs text-slate-400">學生出席回覆與管理員課程彙整</p>
         </div>
       </div>
       <nav class="flex rounded-lg border border-slate-800 bg-slate-900 p-1">
         <button id="studentTab" class="tab-button rounded-md px-4 py-2 text-sm font-bold" data-tab="student">
-          <i class="fa-solid fa-user-check mr-1"></i>學生回報
+          <i class="fa-solid fa-user-check mr-1"></i>學生
         </button>
         <button id="adminTab" class="tab-button rounded-md px-4 py-2 text-sm font-bold" data-tab="admin">
-          <i class="fa-solid fa-chart-simple mr-1"></i>管理統計
+          <i class="fa-solid fa-chart-simple mr-1"></i>管理員
         </button>
       </nav>
     </div>
@@ -39,25 +41,25 @@
 
   <main class="mx-auto max-w-6xl px-4 py-6">
     <div id="configWarning" class="mb-5 hidden rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
-      尚未設定 Apps Script 網址。請部署 `apps-script/Code.gs` 後，把網頁應用程式 URL 填入本檔上方的 `APPS_SCRIPT_URL`。
+      尚未設定 Apps Script 網址。請部署 <code>apps-script/Code.gs</code> 後，把 Web App URL 填入 <code>APPS_SCRIPT_URL</code>。
     </div>
 
     <section class="mb-6 grid gap-4 md:grid-cols-[1fr_280px]">
       <div class="rounded-lg bg-white p-5 shadow-sm">
         <div class="flex flex-wrap items-center gap-2">
-          <span class="rounded bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-800">雲端同步</span>
-          <span class="rounded bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">明天與未來課程可修改</span>
-          <span class="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">GitHub Pages 版本</span>
+          <span class="rounded bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-800">學生密碼登入</span>
+          <span class="rounded bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">月曆與清單回覆</span>
+          <span class="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">Google Sheets 同步</span>
         </div>
-        <h2 class="mt-3 text-2xl font-bold">同學登入後更新出席狀態，管理端即時統計。</h2>
+        <h2 class="mt-3 text-2xl font-bold">快速確認每堂課是否參加</h2>
         <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
-          請用學號與個人密碼登入。若是第一次使用，可在學生區建立資料；已過日期不開放修改，避免舊資料被誤改。
+          學生登入後可用月曆或清單更新出席狀態；管理員可查看統計、編輯課程資訊、修改學生密碼並匯出表格。
         </p>
       </div>
       <div class="rounded-lg bg-slate-900 p-5 text-white shadow-sm">
-        <p class="text-xs font-bold text-slate-400">目前日期</p>
+        <p class="text-xs font-bold text-slate-400">今日</p>
         <div id="todayText" class="mt-1 text-2xl font-bold"></div>
-        <p class="mt-3 text-xs text-slate-400">統計以 Asia/Taipei 日期判斷明天課程。</p>
+        <p class="mt-3 text-xs text-slate-400">系統時間以 Asia/Taipei 顯示</p>
       </div>
     </section>
 
@@ -68,14 +70,15 @@
           <form id="studentLoginForm" class="mt-4 space-y-3">
             <div>
               <label class="block text-xs font-bold text-slate-500" for="studentId">學號</label>
-              <input id="studentId" required autocomplete="username" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="例如 115001">
+              <input id="studentId" required autocomplete="username" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm uppercase outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="例如 A115001">
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-500" for="studentPassword">個人密碼</label>
-              <input id="studentPassword" required type="password" autocomplete="current-password" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="請輸入密碼">
+              <input id="studentPassword" required type="password" autocomplete="current-password" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100">
+              <p class="mt-1 text-xs text-slate-500">忘記密碼請請管理員在後台重設。</p>
             </div>
             <button class="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-500" type="submit">
-              登入並讀取我的課表
+              登入
             </button>
           </form>
         </div>
@@ -89,27 +92,33 @@
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-bold text-slate-500" for="regId">學號</label>
-                <input id="regId" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="115006">
+                <input id="regId" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm uppercase" placeholder="">
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-500" for="regName">姓名</label>
-                <input id="regName" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="王小明">
+                <input id="regName" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
               </div>
             </div>
             <div>
               <label class="block text-xs font-bold text-slate-500" for="regPassword">設定個人密碼</label>
-              <input id="regPassword" required type="password" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="請設定登入密碼">
+              <input id="regPassword" required type="password" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
             </div>
             <div class="grid grid-cols-2 gap-3">
               <div>
                 <label class="block text-xs font-bold text-slate-500" for="regYear">畢業年份</label>
-                <input id="regYear" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value="115級 (2026)">
+                <select id="regYear" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                  <option value="113級 (2024)">113級 (2024)</option>
+                  <option value="114級 (2025)">114級 (2025)</option>
+                  <option value="115級 (2026)" selected>115級 (2026)</option>
+                  <option value="116級 (2027)">116級 (2027)</option>
+                  <option value="117級 (2028)">117級 (2028)</option>
+                </select>
               </div>
               <div>
                 <label class="block text-xs font-bold text-slate-500" for="regType">班別</label>
                 <select id="regType" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
-                  <option>在職專班</option>
-                  <option>五專部</option>
+                  <option>甲班</option>
+                  <option>乙班</option>
                 </select>
               </div>
             </div>
@@ -124,7 +133,7 @@
         <div id="studentPanel" class="rounded-lg bg-white p-5 shadow-sm">
           <div class="flex items-center gap-3 text-slate-500">
             <i class="fa-solid fa-circle-info text-indigo-500"></i>
-            <p class="text-sm">登入後會先顯示明天課程，並列出所有可修改的未來課程。</p>
+            <p class="text-sm">登入後即可查看課程月曆與出席回覆。</p>
           </div>
         </div>
       </div>
@@ -133,17 +142,17 @@
     <section id="adminView" class="hidden">
       <div id="adminLoginPanel" class="mx-auto max-w-md rounded-lg bg-white p-6 shadow-sm">
         <h3 class="text-lg font-bold">管理員登入</h3>
-        <p class="mt-2 text-sm text-slate-500">輸入管理密碼後可查看全班統計、複製 LINE 通報文字與匯出 CSV。</p>
+        <p class="mt-2 text-sm text-slate-500">登入後可管理課程、名單、密碼與匯出表格。</p>
         <form id="adminLoginForm" class="mt-5 space-y-3">
-          <input id="adminPassword" required type="password" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="管理密碼">
-          <button class="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800" type="submit">解鎖管理統計</button>
+          <input id="adminPassword" required type="password" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="管理員密碼">
+          <button class="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800" type="submit">登入管理員</button>
         </form>
       </div>
 
       <div id="adminPanel" class="hidden space-y-5">
         <div class="flex flex-col gap-3 rounded-lg bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h3 class="text-lg font-bold">全班出席統計</h3>
+            <h3 class="text-lg font-bold">出席管理</h3>
             <p id="adminMeta" class="mt-1 text-sm text-slate-500"></p>
           </div>
           <div class="flex flex-wrap gap-2">
@@ -151,31 +160,41 @@
               <i class="fa-solid fa-rotate-right mr-1"></i>重新整理
             </button>
             <button id="exportCsv" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800">
-              <i class="fa-solid fa-file-csv mr-1"></i>匯出 CSV
+              <i class="fa-solid fa-table mr-1"></i>匯出 Excel
             </button>
             <button id="adminLogout" class="rounded-lg bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700 hover:bg-rose-100">
               登出
             </button>
           </div>
         </div>
+        <div id="adminCalendar" class="rounded-lg bg-white p-5 shadow-sm"></div>
+        <div id="passwordPanel" class="rounded-lg bg-white p-5 shadow-sm"></div>
         <div id="adminSummary" class="space-y-4"></div>
       </div>
     </section>
   </main>
 
+  <div id="sessionModal" class="fixed inset-0 z-50 hidden items-center justify-center bg-slate-950/70 p-4"></div>
   <div id="toast" class="fixed bottom-4 left-1/2 z-50 hidden max-w-[92vw] -translate-x-1/2 rounded-lg px-4 py-3 text-sm font-bold shadow-lg"></div>
 
   <script>
     const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz9JDI-TalU-M6RwqC0sL3nHZZawlS3u6eqjb06d6J2XYEedTn4sfUe3fi_p-vZJmadHg/exec';
     const TIME_ZONE = 'Asia/Taipei';
+    const DEFAULT_YEAR = 2026;
+    const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
 
     const state = {
       activeTab: 'student',
       student: null,
       studentPassword: '',
       sessions: [],
+      studentViewMode: 'calendar',
+      studentMonth: 7,
+      selectedStudentDate: '',
       adminPassword: '',
       adminData: null,
+      adminMonth: 7,
+      selectedAdminDate: '',
     };
 
     const $ = (id) => document.getElementById(id);
@@ -205,7 +224,7 @@
 
       $('studentLoginForm').addEventListener('submit', async (event) => {
         event.preventDefault();
-        await studentLogin($('studentId').value.trim(), $('studentPassword').value);
+        await studentLogin($('studentId').value.trim().toUpperCase(), $('studentPassword').value);
       });
 
       $('toggleRegister').addEventListener('click', () => {
@@ -224,7 +243,7 @@
       });
 
       $('refreshAdmin').addEventListener('click', loadAdminSummary);
-      $('exportCsv').addEventListener('click', exportCsv);
+      $('exportCsv').addEventListener('click', exportExcel);
       $('adminLogout').addEventListener('click', () => {
         state.adminPassword = '';
         state.adminData = null;
@@ -251,6 +270,7 @@
         state.student = response.student;
         state.studentPassword = password;
         state.sessions = response.sessions;
+        primeStudentSelection();
         renderStudentPanel();
         showToast(`${state.student.name} 同學，登入成功。`);
       } catch (error) {
@@ -263,10 +283,10 @@
     async function registerStudent() {
       if (!isConfigured()) return showToast('請先設定 Apps Script 網址。', 'warning');
       const payload = {
-        student_id: $('regId').value.trim(),
+        student_id: $('regId').value.trim().toUpperCase(),
         name: $('regName').value.trim(),
         password: $('regPassword').value,
-        year: $('regYear').value.trim(),
+        year: $('regYear').value,
         type: $('regType').value,
       };
 
@@ -279,12 +299,21 @@
         $('studentId').value = payload.student_id;
         $('studentPassword').value = payload.password;
         $('registerForm').classList.add('hidden');
+        primeStudentSelection();
         renderStudentPanel();
         showToast('新同學資料已建立，已自動登入。');
       } catch (error) {
         showToast(error.message, 'warning');
       } finally {
         setLoading($('registerForm'), false);
+      }
+    }
+
+    function primeStudentSelection() {
+      const firstSession = state.sessions.find((session) => session.editable) || state.sessions[0];
+      if (firstSession) {
+        state.selectedStudentDate = firstSession.session_key;
+        state.studentMonth = monthFromSession(firstSession);
       }
     }
 
@@ -304,44 +333,128 @@
       }
     }
 
+    async function markAllAttend() {
+      try {
+        const response = await api('updateAllAttendance', {
+          student_id: state.student.student_id,
+          password: state.studentPassword,
+        });
+        state.sessions = response.sessions;
+        renderStudentPanel();
+        showToast('已將可修改課程全部設為參加。');
+      } catch (error) {
+        showToast(error.message, 'warning');
+      }
+    }
+
     function renderStudentPanel() {
       const panel = $('studentPanel');
       if (!state.student) return;
-
-      const tomorrowSessions = state.sessions.filter((session) => session.is_tomorrow);
-      const editableSessions = state.sessions.filter((session) => session.editable);
-      const firstBlock = tomorrowSessions.length
-        ? sessionListHtml(tomorrowSessions, '明天課程')
-        : `<div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
-             <h4 class="font-bold">明天沒有已登錄課程</h4>
-             <p class="mt-1 text-sm text-slate-500">下方仍可提前更新未來課程出席狀態。</p>
-           </div>`;
 
       panel.innerHTML = `
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <p class="text-sm text-slate-500">目前登入</p>
             <h3 class="text-xl font-bold">${escapeHtml(state.student.name)} 同學</h3>
-            <p class="text-sm text-slate-500">${escapeHtml(state.student.student_id)} · ${escapeHtml(state.student.type)}</p>
+            <p class="text-sm text-slate-500">${escapeHtml(state.student.student_id)} · ${escapeHtml(state.student.year)} · ${escapeHtml(state.student.type)}</p>
           </div>
-          <button id="studentLogout" class="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200">登出</button>
+          <div class="flex flex-wrap gap-2">
+            <button id="markAllAttend" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-500">
+              <i class="fa-solid fa-check-double mr-1"></i>全部參加
+            </button>
+            <button id="studentLogout" class="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200">登出</button>
+          </div>
         </div>
-        <div class="mt-5 space-y-5">
-          ${firstBlock}
-          ${sessionListHtml(editableSessions.filter((session) => !session.is_tomorrow), '未來課程')}
+        <div class="mt-5 flex flex-wrap items-center justify-between gap-3 border-y border-slate-100 py-3">
+          <div class="flex rounded-lg bg-slate-100 p-1">
+            <button class="student-view rounded-md px-3 py-1.5 text-xs font-bold" data-mode="calendar"><i class="fa-regular fa-calendar-days mr-1"></i>月曆</button>
+            <button class="student-view rounded-md px-3 py-1.5 text-xs font-bold" data-mode="list"><i class="fa-solid fa-list-ul mr-1"></i>清單</button>
+          </div>
+          <div class="flex items-center gap-3 text-xs font-bold text-slate-500">
+            <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-emerald-500"></span>參加</span>
+            <span class="flex items-center gap-1"><span class="h-2 w-2 rounded-full bg-rose-500"></span>不參加</span>
+          </div>
         </div>
+        <div class="mt-5">${state.studentViewMode === 'calendar' ? studentCalendarHtml() : studentListHtml()}</div>
       `;
 
       $('studentLogout').addEventListener('click', () => {
         state.student = null;
         state.studentPassword = '';
         state.sessions = [];
-        panel.innerHTML = '<div class="flex items-center gap-3 text-slate-500"><i class="fa-solid fa-circle-info text-indigo-500"></i><p class="text-sm">登入後會先顯示明天課程，並列出所有可修改的未來課程。</p></div>';
+        panel.innerHTML = '<div class="flex items-center gap-3 text-slate-500"><i class="fa-solid fa-circle-info text-indigo-500"></i><p class="text-sm">登入後即可查看課程月曆與出席回覆。</p></div>';
       });
-
+      $('markAllAttend').addEventListener('click', markAllAttend);
+      panel.querySelectorAll('.student-view').forEach((button) => {
+        const active = button.dataset.mode === state.studentViewMode;
+        button.className = `student-view rounded-md px-3 py-1.5 text-xs font-bold ${active ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500 hover:text-slate-800'}`;
+        button.addEventListener('click', () => {
+          state.studentViewMode = button.dataset.mode;
+          renderStudentPanel();
+        });
+      });
+      panel.querySelectorAll('[data-month]').forEach((button) => {
+        button.addEventListener('click', () => {
+          state.studentMonth = Number(button.dataset.month);
+          const first = state.sessions.find((session) => monthFromSession(session) === state.studentMonth);
+          if (first) state.selectedStudentDate = first.session_key;
+          renderStudentPanel();
+        });
+      });
+      panel.querySelectorAll('[data-date-key]').forEach((button) => {
+        button.addEventListener('click', () => {
+          state.selectedStudentDate = button.dataset.dateKey;
+          renderStudentPanel();
+        });
+      });
       panel.querySelectorAll('[data-status]').forEach((button) => {
         button.addEventListener('click', () => updateStatus(button.dataset.session, button.dataset.status));
       });
+    }
+
+    function studentCalendarHtml() {
+      const activeSession = state.sessions.find((session) => session.session_key === state.selectedStudentDate);
+      return `
+        <div class="space-y-5">
+          ${monthSwitcherHtml(state.studentMonth)}
+          ${calendarGridHtml(state.sessions, state.studentMonth, state.selectedStudentDate)}
+          <div class="rounded-lg bg-slate-950 p-5 text-white">
+            ${activeSession ? studentActiveSessionHtml(activeSession) : '<p class="text-sm text-slate-300">請選擇有課程的日期。</p>'}
+          </div>
+        </div>
+      `;
+    }
+
+    function studentActiveSessionHtml(session) {
+      const current = normalizeStatus(session.status);
+      return `
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="rounded bg-indigo-800 px-2 py-1 text-xs font-bold">${escapeHtml(session.date)} (${escapeHtml(session.day)})</span>
+              <span class="text-xs font-bold text-amber-300"><i class="fa-regular fa-clock mr-1"></i>${escapeHtml(session.time)}</span>
+            </div>
+            <h4 class="mt-2 text-lg font-bold text-amber-300">${escapeHtml(session.subject)}</h4>
+            <p class="mt-1 text-sm text-slate-300">${escapeHtml(session.teacher)} · ${escapeHtml(session.classroom)}</p>
+            ${session.notes ? `<p class="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">${escapeHtml(session.notes)}</p>` : ''}
+          </div>
+          <div class="flex shrink-0 gap-2">
+            ${statusButton(session, 'attend', '參加', 'bg-emerald-500 text-white hover:bg-emerald-400', current)}
+            ${statusButton(session, 'absent', '不參加', 'bg-rose-500 text-white hover:bg-rose-400', current)}
+          </div>
+        </div>
+      `;
+    }
+
+    function studentListHtml() {
+      const editable = state.sessions.filter((session) => session.editable);
+      const past = state.sessions.filter((session) => !session.editable);
+      return `
+        <div class="space-y-5">
+          ${sessionListHtml(editable, '可修改課程')}
+          ${sessionListHtml(past, '已過日期')}
+        </div>
+      `;
     }
 
     function sessionListHtml(sessions, title) {
@@ -350,7 +463,7 @@
         <section>
           <div class="mb-3 flex items-center justify-between">
             <h4 class="font-bold">${title}</h4>
-            <span class="text-xs font-bold text-slate-400">${sessions.length} 筆</span>
+            <span class="text-xs font-bold text-slate-400">${sessions.length} 堂</span>
           </div>
           <div class="space-y-3">
             ${sessions.map(sessionCardHtml).join('')}
@@ -360,9 +473,10 @@
     }
 
     function sessionCardHtml(session) {
+      const current = normalizeStatus(session.status);
       return `
         <article class="rounded-lg border border-slate-200 bg-white p-4">
-          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div>
               <div class="flex flex-wrap items-center gap-2">
                 <span class="rounded bg-slate-900 px-2 py-1 text-xs font-bold text-white">${escapeHtml(session.date)} (${escapeHtml(session.day)})</span>
@@ -372,19 +486,20 @@
               <p class="mt-1 text-sm text-slate-500">${escapeHtml(session.time)} · ${escapeHtml(session.classroom)} · ${escapeHtml(session.teacher)}</p>
               ${session.notes ? `<p class="mt-2 rounded bg-amber-50 p-2 text-sm text-amber-900">${escapeHtml(session.notes)}</p>` : ''}
             </div>
-          </div>
-          <div class="mt-4 grid grid-cols-3 gap-2">
-            ${statusButton(session, 'attend', '出席', 'bg-emerald-600 text-white hover:bg-emerald-500')}
-            ${statusButton(session, 'tentative', '待定', 'bg-amber-400 text-slate-950 hover:bg-amber-300')}
-            ${statusButton(session, 'absent', '不出席', 'bg-rose-600 text-white hover:bg-rose-500')}
+            <div class="flex shrink-0 gap-2">
+              ${statusButton(session, 'attend', '參加', 'bg-emerald-600 text-white hover:bg-emerald-500', current)}
+              ${statusButton(session, 'absent', '不參加', 'bg-rose-600 text-white hover:bg-rose-500', current)}
+            </div>
           </div>
         </article>
       `;
     }
 
-    function statusButton(session, status, label, classes) {
-      const pressed = session.status === status;
-      return `<button class="status-button rounded-lg px-3 py-2 text-sm font-bold ${classes}" aria-pressed="${pressed}" data-session="${escapeAttr(session.session_key)}" data-status="${status}">${label}</button>`;
+    function statusButton(session, status, label, classes, current) {
+      const pressed = current === status;
+      const disabled = session.editable === false ? 'disabled aria-disabled="true"' : '';
+      const muted = session.editable === false ? ' opacity-50 cursor-not-allowed' : '';
+      return `<button class="status-button rounded-lg px-3 py-2 text-sm font-bold ${classes}${muted}" aria-pressed="${pressed}" data-session="${escapeAttr(session.session_key)}" data-status="${status}" ${disabled}>${label}</button>`;
     }
 
     async function adminLogin() {
@@ -404,7 +519,79 @@
       try {
         const response = await api('adminSummary', { password: state.adminPassword });
         state.adminData = response;
+        const first = response.sessions[0];
+        if (first && !state.selectedAdminDate) {
+          state.selectedAdminDate = first.session_key;
+          state.adminMonth = monthFromSession(first);
+        }
+        renderAdminCalendar();
+        renderPasswordPanel();
         renderAdminSummary();
+      } catch (error) {
+        showToast(error.message, 'warning');
+      }
+    }
+
+    function renderAdminCalendar() {
+      if (!state.adminData) return;
+      $('adminCalendar').innerHTML = `
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h4 class="font-bold">課程月曆</h4>
+            <p class="mt-1 text-sm text-slate-500">點選日期可開啟該日課程資訊與編輯視窗。</p>
+          </div>
+          ${monthSwitcherHtml(state.adminMonth)}
+        </div>
+        <div class="mt-4">${calendarGridHtml(state.adminData.sessions, state.adminMonth, state.selectedAdminDate, true)}</div>
+      `;
+      $('adminCalendar').querySelectorAll('[data-month]').forEach((button) => {
+        button.addEventListener('click', () => {
+          state.adminMonth = Number(button.dataset.month);
+          const first = state.adminData.sessions.find((session) => monthFromSession(session) === state.adminMonth);
+          if (first) state.selectedAdminDate = first.session_key;
+          renderAdminCalendar();
+        });
+      });
+      $('adminCalendar').querySelectorAll('[data-date-key]').forEach((button) => {
+        button.addEventListener('click', () => openSessionModal(button.dataset.dateKey));
+      });
+    }
+
+    function renderPasswordPanel() {
+      const students = state.adminData.students;
+      $('passwordPanel').innerHTML = `
+        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h4 class="font-bold">學生密碼重設</h4>
+            <p class="mt-1 text-sm text-slate-500">學生忘記個人密碼時，可由管理員在這裡更新。</p>
+          </div>
+          <form id="passwordResetForm" class="grid w-full gap-2 sm:grid-cols-[1fr_1fr_auto] lg:max-w-2xl">
+            <select id="passwordStudentId" class="rounded-lg border border-slate-300 px-3 py-2 text-sm">
+              ${students.map((student) => `<option value="${escapeAttr(student.student_id)}">${escapeHtml(student.student_id)} · ${escapeHtml(student.name)}</option>`).join('')}
+            </select>
+            <input id="passwordNewValue" required class="rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="新密碼">
+            <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500">更新</button>
+          </form>
+        </div>
+      `;
+      $('passwordResetForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        await updateStudentPassword();
+      });
+    }
+
+    async function updateStudentPassword() {
+      try {
+        const response = await api('adminUpdateStudentPassword', {
+          password: state.adminPassword,
+          student_id: $('passwordStudentId').value,
+          new_password: $('passwordNewValue').value,
+        });
+        state.adminData = response;
+        $('passwordNewValue').value = '';
+        renderPasswordPanel();
+        renderAdminSummary();
+        showToast('學生密碼已更新。');
       } catch (error) {
         showToast(error.message, 'warning');
       }
@@ -412,87 +599,207 @@
 
     function renderAdminSummary() {
       const data = state.adminData;
-      $('adminMeta').textContent = `${data.students.length} 位同學 · ${data.sessions.length} 筆課程`;
-      $('adminSummary').innerHTML = data.sessions.map((session) => {
-        const attend = session.attendance.filter((item) => item.status === 'attend');
-        const tentative = session.attendance.filter((item) => item.status === 'tentative');
-        const absent = session.attendance.filter((item) => item.status === 'absent');
-        return `
-          <article class="rounded-lg bg-white p-5 shadow-sm">
-            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-              <div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class="rounded bg-slate-900 px-2 py-1 text-xs font-bold text-white">${escapeHtml(session.date)} (${escapeHtml(session.day)})</span>
-                  <span class="rounded px-2 py-1 text-xs font-bold ${badgeClass(session.type)}">${typeLabel(session.type)}</span>
-                  ${session.editable ? '<span class="rounded bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">學生可修改</span>' : '<span class="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">已鎖定</span>'}
-                </div>
-                <h4 class="mt-2 text-lg font-bold">${escapeHtml(session.subject)}</h4>
-                <p class="mt-1 text-sm text-slate-500">${escapeHtml(session.time)} · ${escapeHtml(session.classroom)} · ${escapeHtml(session.teacher)}</p>
-              </div>
-              <button class="copy-line rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500" data-key="${escapeAttr(session.session_key)}">
-                <i class="fa-brands fa-line mr-1"></i>複製 LINE 通報
-              </button>
-            </div>
-            <div class="mt-4 grid gap-3 md:grid-cols-3">
-              ${nameListHtml('出席', attend, 'text-emerald-700 bg-emerald-50')}
-              ${nameListHtml('待定', tentative, 'text-amber-800 bg-amber-50')}
-              ${nameListHtml('不出席', absent, 'text-rose-700 bg-rose-50')}
-            </div>
-          </article>
-        `;
-      }).join('');
-
+      $('adminMeta').textContent = `${data.students.length} 位學生 · ${data.sessions.length} 堂課`;
+      $('adminSummary').innerHTML = data.sessions.map(adminSessionCardHtml).join('');
       document.querySelectorAll('.copy-line').forEach((button) => {
         button.addEventListener('click', () => copyLineReport(button.dataset.key));
       });
+      document.querySelectorAll('.edit-session').forEach((button) => {
+        button.addEventListener('click', () => openSessionModal(button.dataset.key));
+      });
+    }
+
+    function adminSessionCardHtml(session) {
+      const attend = session.attendance.filter((item) => item.status === 'attend');
+      const absent = session.attendance.filter((item) => item.status !== 'attend');
+      return `
+        <article class="rounded-lg bg-white p-5 shadow-sm">
+          <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded bg-slate-900 px-2 py-1 text-xs font-bold text-white">${escapeHtml(session.date)} (${escapeHtml(session.day)})</span>
+                <span class="rounded px-2 py-1 text-xs font-bold ${badgeClass(session.type)}">${typeLabel(session.type)}</span>
+                ${session.editable ? '<span class="rounded bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">開放修改</span>' : '<span class="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">已過日期</span>'}
+              </div>
+              <h4 class="mt-2 text-lg font-bold">${escapeHtml(session.subject)}</h4>
+              <p class="mt-1 text-sm text-slate-500">${escapeHtml(session.time)} · ${escapeHtml(session.classroom)} · ${escapeHtml(session.teacher)}</p>
+              ${session.notes ? `<p class="mt-2 rounded bg-amber-50 p-2 text-sm text-amber-900">${escapeHtml(session.notes)}</p>` : ''}
+            </div>
+            <div class="flex flex-wrap gap-2">
+              <button class="edit-session rounded-lg bg-slate-100 px-4 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200" data-key="${escapeAttr(session.session_key)}">
+                <i class="fa-solid fa-pen-to-square mr-1"></i>編輯
+              </button>
+              <button class="copy-line rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500" data-key="${escapeAttr(session.session_key)}">
+                <i class="fa-brands fa-line mr-1"></i>複製 LINE
+              </button>
+            </div>
+          </div>
+          <div class="mt-4 grid gap-3 md:grid-cols-2">
+            ${nameListHtml('參加', attend, 'text-emerald-700 bg-emerald-50')}
+            ${nameListHtml('不參加', absent, 'text-rose-700 bg-rose-50')}
+          </div>
+        </article>
+      `;
     }
 
     function nameListHtml(title, rows, classes) {
+      const collapsed = rows.length > 8;
+      const names = rows.map((row) => escapeHtml(`${row.name} (${row.year || '未填畢業年份'})`)).join('、') || '暫無';
       return `
-        <div class="rounded-lg ${classes} p-3">
-          <div class="flex items-center justify-between">
-            <h5 class="text-sm font-bold">${title}</h5>
-            <span class="text-sm font-bold">${rows.length} 人</span>
+        <details class="rounded-lg ${classes} p-3" ${collapsed ? '' : 'open'}>
+          <summary class="cursor-pointer list-none">
+            <div class="flex items-center justify-between">
+              <h5 class="text-sm font-bold">${title}</h5>
+              <span class="text-sm font-bold">${rows.length} 人</span>
+            </div>
+          </summary>
+          <p class="mt-2 max-h-28 overflow-y-auto text-sm leading-6">${names}</p>
+        </details>
+      `;
+    }
+
+    function openSessionModal(sessionKey) {
+      const session = state.adminData.sessions.find((item) => item.session_key === sessionKey);
+      if (!session) return;
+      const attend = session.attendance.filter((item) => item.status === 'attend');
+      const absent = session.attendance.filter((item) => item.status !== 'attend');
+      const modal = $('sessionModal');
+      modal.innerHTML = `
+        <div class="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
+          <div class="flex items-start justify-between bg-slate-950 p-5 text-white">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded bg-indigo-700 px-2 py-1 text-xs font-bold">${escapeHtml(session.date)} (${escapeHtml(session.day)})</span>
+                <span class="text-xs text-slate-300">${escapeHtml(session.time)}</span>
+              </div>
+              <h4 class="mt-2 text-lg font-bold text-amber-300">${escapeHtml(session.subject)}</h4>
+            </div>
+            <button id="closeSessionModal" class="flex h-9 w-9 items-center justify-center rounded-full bg-slate-800 text-white hover:bg-slate-700">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
           </div>
-          <p class="mt-2 min-h-10 text-sm leading-6">${rows.map((row) => escapeHtml(`${row.name} (${row.type})`)).join('、') || '暫無'}</p>
+          <div class="flex-1 space-y-5 overflow-y-auto bg-slate-50 p-5">
+            <form id="sessionEditForm" class="grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-4">
+              <input type="hidden" id="editSessionKey" value="${escapeAttr(session.session_key)}">
+              ${fieldHtml('editDate', '日期', session.date, '例如 07/04')}
+              ${fieldHtml('editDay', '星期', session.day, '例如 六')}
+              ${fieldHtml('editTime', '時間', session.time, '例如 09:00-16:00')}
+              <div>
+                <label class="block text-xs font-bold text-slate-500">類型</label>
+                <select id="editType" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                  ${typeOption('tutoring', session.type, '課程')}
+                  ${typeOption('exam', session.type, '模擬考')}
+                  ${typeOption('event', session.type, '活動')}
+                  ${typeOption('national_exam', session.type, '國考')}
+                </select>
+              </div>
+              <div class="md:col-span-2">${fieldInnerHtml('editSubject', '課程名稱', session.subject, '')}</div>
+              ${fieldHtml('editTeacher', '授課老師', session.teacher, '')}
+              ${fieldHtml('editClassroom', '教室', session.classroom, '')}
+              <div class="md:col-span-4">
+                <label class="block text-xs font-bold text-slate-500">備註</label>
+                <textarea id="editNotes" rows="3" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">${escapeHtml(session.notes || '')}</textarea>
+              </div>
+              <div class="md:col-span-4 flex justify-end">
+                <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500">
+                  <i class="fa-solid fa-floppy-disk mr-1"></i>儲存課程
+                </button>
+              </div>
+            </form>
+            <div class="grid gap-3 md:grid-cols-2">
+              ${nameListHtml('參加', attend, 'text-emerald-700 bg-emerald-50')}
+              ${nameListHtml('不參加', absent, 'text-rose-700 bg-rose-50')}
+            </div>
+          </div>
         </div>
       `;
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      $('closeSessionModal').addEventListener('click', closeSessionModal);
+      $('sessionEditForm').addEventListener('submit', saveSessionEdit);
+    }
+
+    function closeSessionModal() {
+      const modal = $('sessionModal');
+      modal.classList.add('hidden');
+      modal.classList.remove('flex');
+      modal.innerHTML = '';
+    }
+
+    async function saveSessionEdit(event) {
+      event.preventDefault();
+      const nextKey = sessionKeyFromDate($('editDate').value.trim());
+      try {
+        const response = await api('adminUpdateSession', {
+          password: state.adminPassword,
+          session_key: $('editSessionKey').value,
+          date: $('editDate').value.trim(),
+          day: $('editDay').value.trim(),
+          time: $('editTime').value.trim(),
+          subject: $('editSubject').value.trim(),
+          teacher: $('editTeacher').value.trim(),
+          type: $('editType').value,
+          classroom: $('editClassroom').value.trim(),
+          notes: $('editNotes').value.trim(),
+          visible: true,
+        });
+        state.adminData = response;
+        state.selectedAdminDate = nextKey || $('editSessionKey').value;
+        state.adminMonth = Number($('editDate').value.trim().split('/')[0]) || state.adminMonth;
+        closeSessionModal();
+        renderAdminCalendar();
+        renderAdminSummary();
+        showToast('課程資料已更新。');
+      } catch (error) {
+        showToast(error.message, 'warning');
+      }
+    }
+
+    function fieldHtml(id, label, value, placeholder) {
+      return `<div>${fieldInnerHtml(id, label, value, placeholder)}</div>`;
+    }
+
+    function fieldInnerHtml(id, label, value, placeholder) {
+      return `
+        <label class="block text-xs font-bold text-slate-500">${label}</label>
+        <input id="${id}" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value="${escapeAttr(value || '')}" placeholder="${escapeAttr(placeholder || '')}">
+      `;
+    }
+
+    function typeOption(value, current, label) {
+      return `<option value="${value}" ${value === current ? 'selected' : ''}>${label}</option>`;
     }
 
     async function copyLineReport(sessionKey) {
       const session = state.adminData.sessions.find((item) => item.session_key === sessionKey);
       const attend = session.attendance.filter((item) => item.status === 'attend');
-      const tentative = session.attendance.filter((item) => item.status === 'tentative');
-      const absent = session.attendance.filter((item) => item.status === 'absent');
-      const text = `【115牙技國考衝刺 出席回報】
+      const absent = session.attendance.filter((item) => item.status !== 'attend');
+      const text = `115衝刺班出席回報
 日期：${session.date} (${session.day}) ${session.time}
-講題/行程：${session.subject}
+課程：${session.subject}
 教室：${session.classroom}
-講師/負責：${session.teacher}
-注意事項：${session.notes || '無特別宣達'}
+老師：${session.teacher}
+備註：${session.notes || '無'}
 --------------------------
-確定出席 (${attend.length}人)：
-${attend.map((item) => `${item.name}(${item.type})`).join('、') || '暫無'}
+參加 (${attend.length}人)：
+${attend.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).join('、') || '暫無'}
 
-臨時待定 (${tentative.length}人)：
-${tentative.map((item) => item.name).join('、') || '暫無'}
-
-無法出席 (${absent.length}人)：
-${absent.map((item) => item.name).join('、') || '暫無'}`;
+不參加 (${absent.length}人)：
+${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).join('、') || '暫無'}`;
 
       await copyText(text);
       showToast(`已複製 ${session.date} 的 LINE 通報文字。`);
     }
 
-    async function exportCsv() {
+    async function exportExcel() {
       try {
         const response = await api('adminExportData', { password: state.adminPassword });
-        const csv = response.rows.map((row) => row.map(csvCell).join(',')).join('\n');
-        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const xml = excelXml(response.rows);
+        const blob = new Blob(['\uFEFF' + xml], { type: 'application/vnd.ms-excel;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `115牙技國考衝刺班出席名單_${new Date().toISOString().slice(0, 10)}.csv`;
+        link.download = `115衝刺班出席表_${new Date().toISOString().slice(0, 10)}.xls`;
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
@@ -500,6 +807,99 @@ ${absent.map((item) => item.name).join('、') || '暫無'}`;
       } catch (error) {
         showToast(error.message, 'warning');
       }
+    }
+
+    function excelXml(rows) {
+      const table = rows.map((row) => `<Row>${row.map((cell) => `<Cell><Data ss:Type="String">${escapeXml(cell)}</Data></Cell>`).join('')}</Row>`).join('');
+      return `<?xml version="1.0"?>
+<?mso-application progid="Excel.Sheet"?>
+<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"
+ xmlns:o="urn:schemas-microsoft-com:office:office"
+ xmlns:x="urn:schemas-microsoft-com:office:excel"
+ xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">
+ <Worksheet ss:Name="出席表">
+  <Table>${table}</Table>
+  <WorksheetOptions xmlns="urn:schemas-microsoft-com:office:excel">
+   <FreezePanes/>
+   <FrozenNoSplit/>
+   <SplitHorizontal>1</SplitHorizontal>
+   <TopRowBottomPane>1</TopRowBottomPane>
+   <SplitVertical>4</SplitVertical>
+   <LeftColumnRightPane>4</LeftColumnRightPane>
+   <ActivePane>0</ActivePane>
+  </WorksheetOptions>
+ </Worksheet>
+</Workbook>`;
+    }
+
+    function monthSwitcherHtml(currentMonth) {
+      return `
+        <div class="flex items-center gap-2">
+          <span class="text-sm font-bold text-slate-600">月份</span>
+          ${[6, 7].map((month) => `<button class="rounded-lg px-3 py-1 text-xs font-bold ${currentMonth === month ? 'bg-indigo-600 text-white' : 'border border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}" data-month="${month}">2026年 ${month}月</button>`).join('')}
+        </div>
+      `;
+    }
+
+    function calendarGridHtml(sessions, month, selectedKey, adminMode = false) {
+      const byDate = sessions.reduce((acc, session) => {
+        const key = session.session_key;
+        if (monthFromSession(session) === month) acc[key] = session;
+        return acc;
+      }, {});
+      const days = generateCalendarGrid(DEFAULT_YEAR, month);
+      return `
+        <div class="rounded-lg border border-slate-200 bg-white p-4">
+          <div class="mb-2 grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-400">
+            ${WEEKDAYS.map((day) => `<div class="${day === '日' ? 'text-rose-500' : day === '六' ? 'text-indigo-600' : ''}">${day}</div>`).join('')}
+          </div>
+          <div class="grid grid-cols-7 gap-2">
+            ${days.map((day, index) => {
+              if (!day) return '<div class="calendar-day rounded-lg border border-dashed border-slate-100 bg-slate-50/60"></div>';
+              const key = `${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
+              const session = byDate[key];
+              const selected = selectedKey === key;
+              const status = session ? normalizeStatus(session.status) : '';
+              const statusClass = adminMode && session ? 'border-indigo-200 bg-indigo-50 text-indigo-900' : status === 'attend' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : session ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-slate-200 bg-white text-slate-400 opacity-60';
+              const dot = adminMode && session ? 'bg-indigo-500' : status === 'attend' ? 'bg-emerald-500' : session ? 'bg-rose-500' : '';
+              return `
+                <button type="button" class="calendar-day flex flex-col justify-between rounded-lg border p-2 text-left text-xs transition ${statusClass} ${selected ? 'ring-2 ring-indigo-600' : ''} ${session ? 'hover:shadow-sm' : 'cursor-default'}" ${session ? `data-date-key="${escapeAttr(key)}"` : 'disabled'} aria-label="${session ? escapeAttr(session.subject) : ''}">
+                  <div class="flex items-center justify-between">
+                    <span class="flex h-6 w-6 items-center justify-center rounded-full ${selected ? 'bg-indigo-600 text-white' : 'bg-white/70'} font-bold">${day}</span>
+                    ${session ? `<span class="h-2 w-2 rounded-full ${dot}"></span>` : ''}
+                  </div>
+                  <div class="truncate text-[11px] font-bold">${session ? escapeHtml(session.subject) : ''}</div>
+                  ${adminMode && session ? `<div class="text-[10px] text-slate-500">${session.counts.attend}/${session.attendance.length} 參加</div>` : ''}
+                </button>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }
+
+    function generateCalendarGrid(year, month) {
+      const first = new Date(year, month - 1, 1);
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const grid = Array(first.getDay()).fill(null);
+      for (let day = 1; day <= daysInMonth; day += 1) grid.push(day);
+      return grid;
+    }
+
+    function monthFromSession(session) {
+      const text = String(session.date || '');
+      const month = Number(text.split('/')[0]);
+      return Number.isFinite(month) && month > 0 ? month : 7;
+    }
+
+    function sessionKeyFromDate(dateText) {
+      const parts = String(dateText || '').split('/');
+      if (parts.length < 2) return String(dateText || '').replace('/', '');
+      return `${String(Number(parts[0])).padStart(2, '0')}${String(Number(parts[1])).padStart(2, '0')}`;
+    }
+
+    function normalizeStatus(status) {
+      return status === 'attend' ? 'attend' : 'absent';
     }
 
     function api(action, params = {}) {
@@ -515,12 +915,12 @@ ${absent.map((item) => item.name).join('、') || '暫無'}`;
         window[callback] = (payload) => {
           cleanup();
           if (payload.ok) resolve(payload.data);
-          else reject(new Error(payload.error || '伺服器回應錯誤。'));
+          else reject(new Error(payload.error || '資料處理失敗。'));
         };
 
         script.onerror = () => {
           cleanup();
-          reject(new Error('無法連線到 Apps Script，請確認部署網址與存取權限。'));
+          reject(new Error('無法連線到 Apps Script。請確認 APPS_SCRIPT_URL 是最新 /exec 網址，部署存取權限是「任何人」，執行身分是「我」。'));
         };
 
         function cleanup() {
@@ -558,15 +958,11 @@ ${absent.map((item) => item.name).join('、') || '暫無'}`;
 
     function typeLabel(type) {
       return {
-        tutoring: '課輔',
+        tutoring: '課程',
         exam: '模擬考',
         event: '活動',
         national_exam: '國考',
       }[type] || type;
-    }
-
-    function csvCell(value) {
-      return `"${String(value ?? '').replaceAll('"', '""')}"`;
     }
 
     async function copyText(text) {
@@ -598,6 +994,16 @@ ${absent.map((item) => item.name).join('、') || '暫無'}`;
 
     function escapeAttr(value) {
       return escapeHtml(value).replace(/`/g, '&#096;');
+    }
+
+    function escapeXml(value) {
+      return String(value ?? '').replace(/[<>&'"]/g, (char) => ({
+        '<': '&lt;',
+        '>': '&gt;',
+        '&': '&amp;',
+        "'": '&apos;',
+        '"': '&quot;',
+      }[char]));
     }
   </script>
 </body>
