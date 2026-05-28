@@ -197,6 +197,7 @@
       studentViewMode: 'calendar',
       studentMonth: 7,
       selectedStudentDate: '',
+      pendingSessions: {},
       adminPassword: '',
       adminData: null,
       adminMonth: 7,
@@ -324,17 +325,40 @@
     }
 
     async function updateStatus(sessionKey, status) {
+      const key = normalizeSessionKey(sessionKey);
+      const previous = getLocalSessionStatus(key);
+      if (previous === status) return;
+
+      updateLocalSessionStatus(key, status);
+      setSessionPending(key, true);
+      renderStudentPanel();
+
       try {
-        const response = await updateAttendanceApi(sessionKey, status);
-        state.sessions = response.sessions;
+        const response = await updateAttendanceApi(key, status);
+        applyAttendanceResponse(response, key, status);
+        setSessionPending(key, false);
         renderStudentPanel();
         showToast('出席狀態已更新。');
       } catch (error) {
+        updateLocalSessionStatus(key, previous);
+        setSessionPending(key, false);
+        renderStudentPanel();
         showToast(error.message, 'warning');
       }
     }
 
     async function markAllAttend() {
+      const editableKeys = state.sessions.filter((session) => session.editable).map((session) => normalizeSessionKey(session.session_key));
+      const previous = editableKeys.reduce((acc, key) => {
+        acc[key] = getLocalSessionStatus(key);
+        return acc;
+      }, {});
+      editableKeys.forEach((key) => {
+        updateLocalSessionStatus(key, 'attend');
+        setSessionPending(key, true);
+      });
+      renderStudentPanel();
+
       try {
         let response;
         try {
@@ -342,18 +366,24 @@
             student_id: state.student.student_id,
             password: state.studentPassword,
           });
-          state.sessions = response.sessions;
+          applyAttendanceResponse(response);
         } catch (error) {
           if (!String(error.message || '').includes('Unknown action')) throw error;
           const editableSessions = state.sessions.filter((session) => session.editable);
           for (const session of editableSessions) {
             response = await updateAttendanceApi(session.session_key, 'attend');
+            applyAttendanceResponse(response, session.session_key, 'attend');
           }
-          if (response) state.sessions = response.sessions;
         }
+        editableKeys.forEach((key) => setSessionPending(key, false));
         renderStudentPanel();
         showToast('已將可修改課程全部設為參加。');
       } catch (error) {
+        Object.keys(previous).forEach((key) => {
+          updateLocalSessionStatus(key, previous[key]);
+          setSessionPending(key, false);
+        });
+        renderStudentPanel();
         showToast(error.message, 'warning');
       }
     }
@@ -370,7 +400,7 @@
             <p class="text-sm text-slate-500">${escapeHtml(state.student.student_id)} · ${escapeHtml(state.student.year)} · ${escapeHtml(state.student.type)}</p>
           </div>
           <div class="flex flex-wrap gap-2">
-            <button id="markAllAttend" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-500">
+            <button id="markAllAttend" class="rounded-lg bg-emerald-600 px-3 py-2 text-sm font-bold text-white hover:bg-emerald-500" ${hasPendingSessions() ? 'disabled' : ''}>
               <i class="fa-solid fa-check-double mr-1"></i>全部參加
             </button>
             <button id="studentLogout" class="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200">登出</button>
@@ -439,6 +469,7 @@
     function studentActiveSessionHtml(session) {
       const current = normalizeStatus(session.status);
       const surface = statusSurfaceClass(current, true);
+      const pending = isSessionPending(session.session_key);
       return `
         <div class="flex flex-col gap-3 rounded-lg border p-4 ${surface} sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -448,11 +479,12 @@
             </div>
             <h4 class="mt-2 text-lg font-bold">${escapeHtml(session.subject)}</h4>
             <p class="mt-1 text-sm">${escapeHtml(session.teacher)} · ${escapeHtml(session.classroom)}</p>
+            ${pending ? savingBadgeHtml() : ''}
             ${session.notes ? `<p class="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 p-3 text-sm text-amber-100">${escapeHtml(session.notes)}</p>` : ''}
           </div>
           <div class="flex shrink-0 gap-2">
-            ${statusButton(session, 'attend', '參加', 'bg-emerald-500 text-white hover:bg-emerald-400', current)}
-            ${statusButton(session, 'absent', '不參加', 'bg-rose-500 text-white hover:bg-rose-400', current)}
+            ${statusButton(session, 'attend', '參加', 'bg-emerald-500 text-white hover:bg-emerald-400', current, pending)}
+            ${statusButton(session, 'absent', '不參加', 'bg-rose-500 text-white hover:bg-rose-400', current, pending)}
           </div>
         </div>
       `;
@@ -487,6 +519,7 @@
     function sessionCardHtml(session) {
       const current = normalizeStatus(session.status);
       const surface = statusSurfaceClass(current);
+      const pending = isSessionPending(session.session_key);
       return `
         <article class="rounded-lg border p-4 ${surface}">
           <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -497,21 +530,22 @@
               </div>
               <h5 class="mt-2 font-bold">${escapeHtml(session.subject)}</h5>
               <p class="mt-1 text-sm text-slate-500">${escapeHtml(session.time)} · ${escapeHtml(session.classroom)} · ${escapeHtml(session.teacher)}</p>
+              ${pending ? savingBadgeHtml() : ''}
               ${session.notes ? `<p class="mt-2 rounded bg-amber-50 p-2 text-sm text-amber-900">${escapeHtml(session.notes)}</p>` : ''}
             </div>
             <div class="flex shrink-0 gap-2">
-              ${statusButton(session, 'attend', '參加', 'bg-emerald-600 text-white hover:bg-emerald-500', current)}
-              ${statusButton(session, 'absent', '不參加', 'bg-rose-600 text-white hover:bg-rose-500', current)}
+              ${statusButton(session, 'attend', '參加', 'bg-emerald-600 text-white hover:bg-emerald-500', current, pending)}
+              ${statusButton(session, 'absent', '不參加', 'bg-rose-600 text-white hover:bg-rose-500', current, pending)}
             </div>
           </div>
         </article>
       `;
     }
 
-    function statusButton(session, status, label, classes, current) {
+    function statusButton(session, status, label, classes, current, pending = false) {
       const pressed = current === status;
-      const disabled = session.editable === false ? 'disabled aria-disabled="true"' : '';
-      const muted = session.editable === false ? ' opacity-50 cursor-not-allowed' : pressed ? '' : ' bg-slate-200 text-slate-400 hover:bg-slate-200';
+      const disabled = session.editable === false || pending ? 'disabled aria-disabled="true"' : '';
+      const muted = session.editable === false || pending ? ' opacity-60 cursor-not-allowed' : pressed ? '' : ' bg-slate-200 text-slate-400 hover:bg-slate-200';
       const activeClasses = pressed ? classes : 'bg-slate-200 text-slate-400 hover:bg-slate-200';
       return `<button class="status-button rounded-lg px-3 py-2 text-sm font-bold ${activeClasses}${muted}" aria-pressed="${pressed}" data-session="${escapeAttr(normalizeSessionKey(session.session_key))}" data-status="${status}" ${disabled}>${label}</button>`;
     }
@@ -524,7 +558,7 @@
           password: state.studentPassword,
           session_key: normalizedKey,
           status,
-        });
+        }, { showOverlay: false });
       } catch (error) {
         const message = String(error.message || '');
         const legacyKey = legacySessionKey(normalizedKey);
@@ -534,8 +568,62 @@
           password: state.studentPassword,
           session_key: legacyKey,
           status,
-        });
+        }, { showOverlay: false });
       }
+    }
+
+    function getLocalSessionStatus(sessionKey) {
+      const key = normalizeSessionKey(sessionKey);
+      const session = state.sessions.find((item) => normalizeSessionKey(item.session_key) === key);
+      return normalizeStatus(session ? session.status : 'absent');
+    }
+
+    function updateLocalSessionStatus(sessionKey, status) {
+      const key = normalizeSessionKey(sessionKey);
+      state.sessions = state.sessions.map((session) => {
+        if (normalizeSessionKey(session.session_key) !== key) return session;
+        return Object.assign({}, session, { session_key: key, status: normalizeStatus(status) });
+      });
+    }
+
+    function applyAttendanceResponse(response, fallbackKey, fallbackStatus) {
+      if (response && Array.isArray(response.updated)) {
+        response.updated.forEach((item) => applyAttendanceResponse(item));
+        return;
+      }
+      if (response && Array.isArray(response.sessions)) {
+        state.sessions = response.sessions;
+        return;
+      }
+      const key = normalizeSessionKey((response && response.session_key) || fallbackKey);
+      const status = normalizeStatus((response && response.status) || fallbackStatus);
+      if (key) updateLocalSessionStatus(key, status);
+    }
+
+    function setSessionPending(sessionKey, pending) {
+      const key = normalizeSessionKey(sessionKey);
+      if (pending) {
+        state.pendingSessions[key] = true;
+      } else {
+        delete state.pendingSessions[key];
+      }
+    }
+
+    function isSessionPending(sessionKey) {
+      return Boolean(state.pendingSessions[normalizeSessionKey(sessionKey)]);
+    }
+
+    function hasPendingSessions() {
+      return Object.keys(state.pendingSessions).length > 0;
+    }
+
+    function savingBadgeHtml() {
+      return `
+        <span class="mt-2 inline-flex items-center gap-1 rounded-full bg-white/80 px-2 py-1 text-xs font-bold text-slate-600">
+          <span class="h-3 w-3 animate-spin rounded-full border-2 border-slate-300 border-t-indigo-600"></span>
+          儲存中
+        </span>
+      `;
     }
 
     async function adminLogin() {
@@ -899,11 +987,12 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
               const status = session ? normalizeStatus(session.status) : '';
               const statusClass = adminMode && session ? 'border-indigo-200 bg-indigo-50 text-indigo-900' : status === 'attend' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : session ? 'border-rose-200 bg-rose-50 text-rose-900' : 'border-slate-200 bg-white text-slate-400 opacity-60';
               const dot = adminMode && session ? 'bg-indigo-500' : status === 'attend' ? 'bg-emerald-500' : session ? 'bg-rose-500' : '';
+              const pending = session && isSessionPending(session.session_key);
               return `
-                <button type="button" class="calendar-day flex flex-col justify-between rounded-lg border p-2 text-left text-xs transition ${statusClass} ${isSelected ? 'ring-2 ring-indigo-600' : ''} ${session ? 'hover:shadow-sm' : 'cursor-default'}" ${session ? `data-date-key="${escapeAttr(key)}"` : 'disabled'} aria-label="${session ? escapeAttr(session.subject) : ''}">
+                <button type="button" class="calendar-day relative flex flex-col justify-between rounded-lg border p-2 text-left text-xs transition ${statusClass} ${isSelected ? 'ring-2 ring-indigo-600' : ''} ${session ? 'hover:shadow-sm' : 'cursor-default'}" ${session ? `data-date-key="${escapeAttr(key)}"` : 'disabled'} aria-label="${session ? escapeAttr(session.subject) : ''}">
                   <div class="flex items-center justify-between">
                     <span class="flex h-6 w-6 items-center justify-center rounded-full ${isSelected ? 'bg-indigo-600 text-white' : 'bg-white/70'} font-bold">${day}</span>
-                    ${session ? `<span class="h-2 w-2 rounded-full ${dot}"></span>` : ''}
+                    ${pending ? '<span class="h-3 w-3 animate-spin rounded-full border-2 border-white/70 border-t-indigo-600"></span>' : session ? `<span class="h-2 w-2 rounded-full ${dot}"></span>` : ''}
                   </div>
                   <div class="min-h-[28px] overflow-hidden text-[11px] font-bold leading-tight">${session ? escapeHtml(session.subject) : ''}</div>
                   ${session ? `<div class="truncate text-[10px] opacity-80">${escapeHtml(session.time || '')}</div>` : ''}
@@ -963,9 +1052,10 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
         : 'border-rose-200 bg-rose-50';
     }
 
-    function api(action, params = {}) {
+    function api(action, params = {}, options = {}) {
       return new Promise((resolve, reject) => {
-        showLoading();
+        const showOverlay = options.showOverlay !== false;
+        if (showOverlay) showLoading();
         const callback = `attendanceCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
         const script = document.createElement('script');
         const query = new URLSearchParams(Object.assign({}, params, { action, callback }));
@@ -986,7 +1076,7 @@ ${absent.map((item) => `${item.name}(${item.year || '未填畢業年份'})`).joi
         };
 
         function cleanup() {
-          hideLoading();
+          if (showOverlay) hideLoading();
           window.clearTimeout(timeout);
           delete window[callback];
           script.remove();

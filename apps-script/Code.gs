@@ -158,16 +158,15 @@ function updateAttendance(studentId, password, sessionKey, status) {
     throw new Error('只能修改明天與未來課程。');
   }
 
-  upsertAttendance_(student.student_id, session.session_key, status);
-  return { student, sessions: sessionPayloadForStudent_(student.student_id) };
+  return upsertAttendance_(student.student_id, session.session_key, status);
 }
 
 function updateAllAttendance(studentId, password) {
   const student = findActiveStudent_(studentId, password);
-  visibleSessions_().filter(isEditableSession_).forEach((session) => {
-    upsertAttendance_(student.student_id, session.session_key, 'attend');
+  const updated = visibleSessions_().filter(isEditableSession_).map((session) => {
+    return upsertAttendance_(student.student_id, session.session_key, 'attend');
   });
-  return { student, sessions: sessionPayloadForStudent_(student.student_id) };
+  return { updated };
 }
 
 function adminSummary() {
@@ -282,11 +281,12 @@ function upsertAttendance_(studentId, sessionKey, status) {
   for (let i = 1; i < values.length; i += 1) {
     if (normalizeStudentId_(values[i][0]) === id && normalizeKey_(values[i][1]) === key) {
       attendanceSheet.getRange(i + 1, 1, 1, 4).setValues([[id, key, normalizedStatus, now]]);
-      return;
+      return { session_key: key, status: normalizedStatus, updated_at: now };
     }
   }
 
   attendanceSheet.appendRow([id, key, normalizedStatus, now]);
+  return { session_key: key, status: normalizedStatus, updated_at: now };
 }
 
 function adminUpdateSession(params) {
