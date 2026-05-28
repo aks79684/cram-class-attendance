@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>115 牙體技術師國考衝刺班 - 出席統計</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <style>
+    body { font-family: 'Noto Sans TC', system-ui, sans-serif; }
+    .status-button[aria-pressed="true"] { box-shadow: inset 0 0 0 2px rgba(15, 23, 42, 0.28); }
+  </style>
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900">
+  <header class="bg-slate-950 text-white">
+    <div class="mx-auto flex max-w-6xl flex-col gap-4 px-4 py-5 sm:flex-row sm:items-center sm:justify-between">
+      <div class="flex items-center gap-3">
+        <div class="flex h-11 w-11 items-center justify-center rounded-lg bg-indigo-600 text-xl">
+          <i class="fa-solid fa-tooth"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold tracking-wide sm:text-xl">115 牙體技術師國考衝刺班</h1>
+          <p class="text-xs text-slate-400">隔日上課出席回報與幹部統計</p>
+        </div>
+      </div>
+      <nav class="flex rounded-lg border border-slate-800 bg-slate-900 p-1">
+        <button id="studentTab" class="tab-button rounded-md px-4 py-2 text-sm font-bold" data-tab="student">
+          <i class="fa-solid fa-user-check mr-1"></i>學生回報
+        </button>
+        <button id="adminTab" class="tab-button rounded-md px-4 py-2 text-sm font-bold" data-tab="admin">
+          <i class="fa-solid fa-chart-simple mr-1"></i>管理統計
+        </button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-6xl px-4 py-6">
+    <div id="configWarning" class="mb-5 hidden rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+      尚未設定 Apps Script 網址。請部署 `apps-script/Code.gs` 後，把網頁應用程式 URL 填入本檔上方的 `APPS_SCRIPT_URL`。
+    </div>
+
+    <section class="mb-6 grid gap-4 md:grid-cols-[1fr_280px]">
+      <div class="rounded-lg bg-white p-5 shadow-sm">
+        <div class="flex flex-wrap items-center gap-2">
+          <span class="rounded bg-indigo-100 px-2 py-1 text-xs font-bold text-indigo-800">雲端同步</span>
+          <span class="rounded bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">明天與未來課程可修改</span>
+          <span class="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-700">GitHub Pages 版本</span>
+        </div>
+        <h2 class="mt-3 text-2xl font-bold">同學登入後更新出席狀態，管理端即時統計。</h2>
+        <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-600">
+          請用學號與個人密碼登入。若是第一次使用，可在學生區建立資料；已過日期不開放修改，避免舊資料被誤改。
+        </p>
+      </div>
+      <div class="rounded-lg bg-slate-900 p-5 text-white shadow-sm">
+        <p class="text-xs font-bold text-slate-400">目前日期</p>
+        <div id="todayText" class="mt-1 text-2xl font-bold"></div>
+        <p class="mt-3 text-xs text-slate-400">統計以 Asia/Taipei 日期判斷明天課程。</p>
+      </div>
+    </section>
+
+    <section id="studentView" class="grid gap-6 lg:grid-cols-[360px_1fr]">
+      <div class="space-y-5">
+        <div class="rounded-lg bg-white p-5 shadow-sm">
+          <h3 class="text-base font-bold">學生登入</h3>
+          <form id="studentLoginForm" class="mt-4 space-y-3">
+            <div>
+              <label class="block text-xs font-bold text-slate-500" for="studentId">學號</label>
+              <input id="studentId" required autocomplete="username" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="例如 115001">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-500" for="studentPassword">個人密碼</label>
+              <input id="studentPassword" required type="password" autocomplete="current-password" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100" placeholder="請輸入密碼">
+            </div>
+            <button class="w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-indigo-500" type="submit">
+              登入並讀取我的課表
+            </button>
+          </form>
+        </div>
+
+        <div class="rounded-lg bg-white p-5 shadow-sm">
+          <button id="toggleRegister" class="flex w-full items-center justify-between text-left text-base font-bold">
+            <span><i class="fa-solid fa-user-plus mr-2 text-emerald-600"></i>新同學首次登記</span>
+            <i class="fa-solid fa-chevron-down text-slate-400"></i>
+          </button>
+          <form id="registerForm" class="mt-4 hidden space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-500" for="regId">學號</label>
+                <input id="regId" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="115006">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-500" for="regName">姓名</label>
+                <input id="regName" required class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="王小明">
+              </div>
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-500" for="regPassword">設定個人密碼</label>
+              <input id="regPassword" required type="password" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="請設定登入密碼">
+            </div>
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-bold text-slate-500" for="regYear">畢業年份</label>
+                <input id="regYear" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value="115級 (2026)">
+              </div>
+              <div>
+                <label class="block text-xs font-bold text-slate-500" for="regType">班別</label>
+                <select id="regType" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">
+                  <option>在職專班</option>
+                  <option>五專部</option>
+                </select>
+              </div>
+            </div>
+            <button class="w-full rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-emerald-500" type="submit">
+              建立資料並登入
+            </button>
+          </form>
+        </div>
+      </div>
+
+      <div class="space-y-5">
+        <div id="studentPanel" class="rounded-lg bg-white p-5 shadow-sm">
+          <div class="flex items-center gap-3 text-slate-500">
+            <i class="fa-solid fa-circle-info text-indigo-500"></i>
+            <p class="text-sm">登入後會先顯示明天課程，並列出所有可修改的未來課程。</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="adminView" class="hidden">
+      <div id="adminLoginPanel" class="mx-auto max-w-md rounded-lg bg-white p-6 shadow-sm">
+        <h3 class="text-lg font-bold">管理員登入</h3>
+        <p class="mt-2 text-sm text-slate-500">輸入管理密碼後可查看全班統計、複製 LINE 通報文字與匯出 CSV。</p>
+        <form id="adminLoginForm" class="mt-5 space-y-3">
+          <input id="adminPassword" required type="password" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="管理密碼">
+          <button class="w-full rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-bold text-white hover:bg-slate-800" type="submit">解鎖管理統計</button>
+        </form>
+      </div>
+
+      <div id="adminPanel" class="hidden space-y-5">
+        <div class="flex flex-col gap-3 rounded-lg bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h3 class="text-lg font-bold">全班出席統計</h3>
+            <p id="adminMeta" class="mt-1 text-sm text-slate-500"></p>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button id="refreshAdmin" class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500">
+              <i class="fa-solid fa-rotate-right mr-1"></i>重新整理
+            </button>
+            <button id="exportCsv" class="rounded-lg bg-slate-900 px-4 py-2 text-sm font-bold text-white hover:bg-slate-800">
+              <i class="fa-solid fa-file-csv mr-1"></i>匯出 CSV
+            </button>
+            <button id="adminLogout" class="rounded-lg bg-rose-50 px-4 py-2 text-sm font-bold text-rose-700 hover:bg-rose-100">
+              登出
+            </button>
+          </div>
+        </div>
+        <div id="adminSummary" class="space-y-4"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="toast" class="fixed bottom-4 left-1/2 z-50 hidden max-w-[92vw] -translate-x-1/2 rounded-lg px-4 py-3 text-sm font-bold shadow-lg"></div>
+
+  <script>
+    const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxkuUyNMuXdPzWDnPtVyggvpxiaaCuPMoqevEB0Wnoz8o0V37r5yYhzuK0takwSdyg0JA/exec';
+    const TIME_ZONE = 'Asia/Taipei';
+
+    const state = {
+      activeTab: 'student',
+      student: null,
+      studentPassword: '',
+      sessions: [],
+      adminPassword: '',
+      adminData: null,
+    };
+
+    const $ = (id) => document.getElementById(id);
+    const isConfigured = () => APPS_SCRIPT_URL && !APPS_SCRIPT_URL.includes('PASTE_YOUR');
+
+    document.addEventListener('DOMContentLoaded', () => {
+      $('todayText').textContent = new Intl.DateTimeFormat('zh-TW', {
+        timeZone: TIME_ZONE,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        weekday: 'short',
+      }).format(new Date());
+
+      if (!isConfigured()) $('configWarning').classList.remove('hidden');
+      bindEvents();
+      renderTabs();
+    });
+
+    function bindEvents() {
+      document.querySelectorAll('.tab-button').forEach((button) => {
+        button.addEventListener('click', () => {
+          state.activeTab = button.dataset.tab;
+          renderTabs();
+        });
+      });
+
+      $('studentLoginForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        await studentLogin($('studentId').value.trim(), $('studentPassword').value);
+      });
+
+      $('toggleRegister').addEventListener('click', () => {
+        $('registerForm').classList.toggle('hidden');
+      });
+
+      $('registerForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        await registerStudent();
+      });
+
+      $('adminLoginForm').addEventListener('submit', async (event) => {
+        event.preventDefault();
+        state.adminPassword = $('adminPassword').value;
+        await adminLogin();
+      });
+
+      $('refreshAdmin').addEventListener('click', loadAdminSummary);
+      $('exportCsv').addEventListener('click', exportCsv);
+      $('adminLogout').addEventListener('click', () => {
+        state.adminPassword = '';
+        state.adminData = null;
+        $('adminPassword').value = '';
+        $('adminLoginPanel').classList.remove('hidden');
+        $('adminPanel').classList.add('hidden');
+      });
+    }
+
+    function renderTabs() {
+      document.querySelectorAll('.tab-button').forEach((button) => {
+        const active = button.dataset.tab === state.activeTab;
+        button.className = `tab-button rounded-md px-4 py-2 text-sm font-bold ${active ? 'bg-indigo-600 text-white' : 'text-slate-300 hover:text-white'}`;
+      });
+      $('studentView').classList.toggle('hidden', state.activeTab !== 'student');
+      $('adminView').classList.toggle('hidden', state.activeTab !== 'admin');
+    }
+
+    async function studentLogin(studentId, password) {
+      if (!isConfigured()) return showToast('請先設定 Apps Script 網址。', 'warning');
+      setLoading($('studentLoginForm'), true);
+      try {
+        const response = await api('loginStudent', { student_id: studentId, password });
+        state.student = response.student;
+        state.studentPassword = password;
+        state.sessions = response.sessions;
+        renderStudentPanel();
+        showToast(`${state.student.name} 同學，登入成功。`);
+      } catch (error) {
+        showToast(error.message, 'warning');
+      } finally {
+        setLoading($('studentLoginForm'), false);
+      }
+    }
+
+    async function registerStudent() {
+      if (!isConfigured()) return showToast('請先設定 Apps Script 網址。', 'warning');
+      const payload = {
+        student_id: $('regId').value.trim(),
+        name: $('regName').value.trim(),
+        password: $('regPassword').value,
+        year: $('regYear').value.trim(),
+        type: $('regType').value,
+      };
+
+      setLoading($('registerForm'), true);
+      try {
+        const response = await api('registerStudent', payload);
+        state.student = response.student;
+        state.studentPassword = payload.password;
+        state.sessions = response.sessions;
+        $('studentId').value = payload.student_id;
+        $('studentPassword').value = payload.password;
+        $('registerForm').classList.add('hidden');
+        renderStudentPanel();
+        showToast('新同學資料已建立，已自動登入。');
+      } catch (error) {
+        showToast(error.message, 'warning');
+      } finally {
+        setLoading($('registerForm'), false);
+      }
+    }
+
+    async function updateStatus(sessionKey, status) {
+      try {
+        const response = await api('updateAttendance', {
+          student_id: state.student.student_id,
+          password: state.studentPassword,
+          session_key: sessionKey,
+          status,
+        });
+        state.sessions = response.sessions;
+        renderStudentPanel();
+        showToast('出席狀態已更新。');
+      } catch (error) {
+        showToast(error.message, 'warning');
+      }
+    }
+
+    function renderStudentPanel() {
+      const panel = $('studentPanel');
+      if (!state.student) return;
+
+      const tomorrowSessions = state.sessions.filter((session) => session.is_tomorrow);
+      const editableSessions = state.sessions.filter((session) => session.editable);
+      const firstBlock = tomorrowSessions.length
+        ? sessionListHtml(tomorrowSessions, '明天課程')
+        : `<div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+             <h4 class="font-bold">明天沒有已登錄課程</h4>
+             <p class="mt-1 text-sm text-slate-500">下方仍可提前更新未來課程出席狀態。</p>
+           </div>`;
+
+      panel.innerHTML = `
+        <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <p class="text-sm text-slate-500">目前登入</p>
+            <h3 class="text-xl font-bold">${escapeHtml(state.student.name)} 同學</h3>
+            <p class="text-sm text-slate-500">${escapeHtml(state.student.student_id)} · ${escapeHtml(state.student.type)}</p>
+          </div>
+          <button id="studentLogout" class="rounded-lg bg-slate-100 px-3 py-2 text-sm font-bold text-slate-700 hover:bg-slate-200">登出</button>
+        </div>
+        <div class="mt-5 space-y-5">
+          ${firstBlock}
+          ${sessionListHtml(editableSessions.filter((session) => !session.is_tomorrow), '未來課程')}
+        </div>
+      `;
+
+      $('studentLogout').addEventListener('click', () => {
+        state.student = null;
+        state.studentPassword = '';
+        state.sessions = [];
+        panel.innerHTML = '<div class="flex items-center gap-3 text-slate-500"><i class="fa-solid fa-circle-info text-indigo-500"></i><p class="text-sm">登入後會先顯示明天課程，並列出所有可修改的未來課程。</p></div>';
+      });
+
+      panel.querySelectorAll('[data-status]').forEach((button) => {
+        button.addEventListener('click', () => updateStatus(button.dataset.session, button.dataset.status));
+      });
+    }
+
+    function sessionListHtml(sessions, title) {
+      if (!sessions.length) return '';
+      return `
+        <section>
+          <div class="mb-3 flex items-center justify-between">
+            <h4 class="font-bold">${title}</h4>
+            <span class="text-xs font-bold text-slate-400">${sessions.length} 筆</span>
+          </div>
+          <div class="space-y-3">
+            ${sessions.map(sessionCardHtml).join('')}
+          </div>
+        </section>
+      `;
+    }
+
+    function sessionCardHtml(session) {
+      return `
+        <article class="rounded-lg border border-slate-200 bg-white p-4">
+          <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <div class="flex flex-wrap items-center gap-2">
+                <span class="rounded bg-slate-900 px-2 py-1 text-xs font-bold text-white">${escapeHtml(session.date)} (${escapeHtml(session.day)})</span>
+                <span class="rounded px-2 py-1 text-xs font-bold ${badgeClass(session.type)}">${typeLabel(session.type)}</span>
+              </div>
+              <h5 class="mt-2 font-bold">${escapeHtml(session.subject)}</h5>
+              <p class="mt-1 text-sm text-slate-500">${escapeHtml(session.time)} · ${escapeHtml(session.classroom)} · ${escapeHtml(session.teacher)}</p>
+              ${session.notes ? `<p class="mt-2 rounded bg-amber-50 p-2 text-sm text-amber-900">${escapeHtml(session.notes)}</p>` : ''}
+            </div>
+          </div>
+          <div class="mt-4 grid grid-cols-3 gap-2">
+            ${statusButton(session, 'attend', '出席', 'bg-emerald-600 text-white hover:bg-emerald-500')}
+            ${statusButton(session, 'tentative', '待定', 'bg-amber-400 text-slate-950 hover:bg-amber-300')}
+            ${statusButton(session, 'absent', '不出席', 'bg-rose-600 text-white hover:bg-rose-500')}
+          </div>
+        </article>
+      `;
+    }
+
+    function statusButton(session, status, label, classes) {
+      const pressed = session.status === status;
+      return `<button class="status-button rounded-lg px-3 py-2 text-sm font-bold ${classes}" aria-pressed="${pressed}" data-session="${escapeAttr(session.session_key)}" data-status="${status}">${label}</button>`;
+    }
+
+    async function adminLogin() {
+      if (!isConfigured()) return showToast('請先設定 Apps Script 網址。', 'warning');
+      try {
+        await api('adminLogin', { password: state.adminPassword });
+        $('adminLoginPanel').classList.add('hidden');
+        $('adminPanel').classList.remove('hidden');
+        await loadAdminSummary();
+        showToast('管理員登入成功。');
+      } catch (error) {
+        showToast(error.message, 'warning');
+      }
+    }
+
+    async function loadAdminSummary() {
+      try {
+        const response = await api('adminSummary', { password: state.adminPassword });
+        state.adminData = response;
+        renderAdminSummary();
+      } catch (error) {
+        showToast(error.message, 'warning');
+      }
+    }
+
+    function renderAdminSummary() {
+      const data = state.adminData;
+      $('adminMeta').textContent = `${data.students.length} 位同學 · ${data.sessions.length} 筆課程`;
+      $('adminSummary').innerHTML = data.sessions.map((session) => {
+        const attend = session.attendance.filter((item) => item.status === 'attend');
+        const tentative = session.attendance.filter((item) => item.status === 'tentative');
+        const absent = session.attendance.filter((item) => item.status === 'absent');
+        return `
+          <article class="rounded-lg bg-white p-5 shadow-sm">
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <div class="flex flex-wrap items-center gap-2">
+                  <span class="rounded bg-slate-900 px-2 py-1 text-xs font-bold text-white">${escapeHtml(session.date)} (${escapeHtml(session.day)})</span>
+                  <span class="rounded px-2 py-1 text-xs font-bold ${badgeClass(session.type)}">${typeLabel(session.type)}</span>
+                  ${session.editable ? '<span class="rounded bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-800">學生可修改</span>' : '<span class="rounded bg-slate-100 px-2 py-1 text-xs font-bold text-slate-500">已鎖定</span>'}
+                </div>
+                <h4 class="mt-2 text-lg font-bold">${escapeHtml(session.subject)}</h4>
+                <p class="mt-1 text-sm text-slate-500">${escapeHtml(session.time)} · ${escapeHtml(session.classroom)} · ${escapeHtml(session.teacher)}</p>
+              </div>
+              <button class="copy-line rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500" data-key="${escapeAttr(session.session_key)}">
+                <i class="fa-brands fa-line mr-1"></i>複製 LINE 通報
+              </button>
+            </div>
+            <div class="mt-4 grid gap-3 md:grid-cols-3">
+              ${nameListHtml('出席', attend, 'text-emerald-700 bg-emerald-50')}
+              ${nameListHtml('待定', tentative, 'text-amber-800 bg-amber-50')}
+              ${nameListHtml('不出席', absent, 'text-rose-700 bg-rose-50')}
+            </div>
+          </article>
+        `;
+      }).join('');
+
+      document.querySelectorAll('.copy-line').forEach((button) => {
+        button.addEventListener('click', () => copyLineReport(button.dataset.key));
+      });
+    }
+
+    function nameListHtml(title, rows, classes) {
+      return `
+        <div class="rounded-lg ${classes} p-3">
+          <div class="flex items-center justify-between">
+            <h5 class="text-sm font-bold">${title}</h5>
+            <span class="text-sm font-bold">${rows.length} 人</span>
+          </div>
+          <p class="mt-2 min-h-10 text-sm leading-6">${rows.map((row) => escapeHtml(`${row.name} (${row.type})`)).join('、') || '暫無'}</p>
+        </div>
+      `;
+    }
+
+    async function copyLineReport(sessionKey) {
+      const session = state.adminData.sessions.find((item) => item.session_key === sessionKey);
+      const attend = session.attendance.filter((item) => item.status === 'attend');
+      const tentative = session.attendance.filter((item) => item.status === 'tentative');
+      const absent = session.attendance.filter((item) => item.status === 'absent');
+      const text = `【115牙技國考衝刺 出席回報】
+日期：${session.date} (${session.day}) ${session.time}
+講題/行程：${session.subject}
+教室：${session.classroom}
+講師/負責：${session.teacher}
+注意事項：${session.notes || '無特別宣達'}
+--------------------------
+確定出席 (${attend.length}人)：
+${attend.map((item) => `${item.name}(${item.type})`).join('、') || '暫無'}
+
+臨時待定 (${tentative.length}人)：
+${tentative.map((item) => item.name).join('、') || '暫無'}
+
+無法出席 (${absent.length}人)：
+${absent.map((item) => item.name).join('、') || '暫無'}`;
+
+      await copyText(text);
+      showToast(`已複製 ${session.date} 的 LINE 通報文字。`);
+    }
+
+    async function exportCsv() {
+      try {
+        const response = await api('adminExportData', { password: state.adminPassword });
+        const csv = response.rows.map((row) => row.map(csvCell).join(',')).join('\n');
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `115牙技國考衝刺班出席名單_${new Date().toISOString().slice(0, 10)}.csv`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      } catch (error) {
+        showToast(error.message, 'warning');
+      }
+    }
+
+    function api(action, params = {}) {
+      return new Promise((resolve, reject) => {
+        const callback = `attendanceCallback_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const script = document.createElement('script');
+        const query = new URLSearchParams(Object.assign({}, params, { action, callback }));
+
+        window[callback] = (payload) => {
+          cleanup();
+          if (payload.ok) resolve(payload.data);
+          else reject(new Error(payload.error || '伺服器回應錯誤。'));
+        };
+
+        script.onerror = () => {
+          cleanup();
+          reject(new Error('無法連線到 Apps Script，請確認部署網址與存取權限。'));
+        };
+
+        function cleanup() {
+          delete window[callback];
+          script.remove();
+        }
+
+        script.src = `${APPS_SCRIPT_URL}?${query.toString()}`;
+        document.body.appendChild(script);
+      });
+    }
+
+    function setLoading(form, loading) {
+      form.querySelectorAll('button, input, select').forEach((el) => {
+        el.disabled = loading;
+        el.classList.toggle('opacity-60', loading);
+      });
+    }
+
+    function showToast(message, type = 'success') {
+      const toast = $('toast');
+      toast.textContent = message;
+      toast.className = `fixed bottom-4 left-1/2 z-50 max-w-[92vw] -translate-x-1/2 rounded-lg px-4 py-3 text-sm font-bold shadow-lg ${type === 'warning' ? 'bg-amber-400 text-slate-950' : 'bg-slate-950 text-white'}`;
+      toast.classList.remove('hidden');
+      setTimeout(() => toast.classList.add('hidden'), 3500);
+    }
+
+    function badgeClass(type) {
+      if (type === 'exam') return 'bg-amber-100 text-amber-800';
+      if (type === 'event') return 'bg-emerald-100 text-emerald-800';
+      if (type === 'national_exam') return 'bg-rose-100 text-rose-800';
+      return 'bg-indigo-100 text-indigo-800';
+    }
+
+    function typeLabel(type) {
+      return {
+        tutoring: '課輔',
+        exam: '模擬考',
+        event: '活動',
+        national_exam: '國考',
+      }[type] || type;
+    }
+
+    function csvCell(value) {
+      return `"${String(value ?? '').replaceAll('"', '""')}"`;
+    }
+
+    async function copyText(text) {
+      if (navigator.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(text);
+        return;
+      }
+
+      const textarea = document.createElement('textarea');
+      textarea.value = text;
+      textarea.setAttribute('readonly', '');
+      textarea.style.position = 'fixed';
+      textarea.style.left = '-9999px';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      textarea.remove();
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+        '&': '&amp;',
+        '<': '&lt;',
+        '>': '&gt;',
+        '"': '&quot;',
+        "'": '&#039;',
+      }[char]));
+    }
+
+    function escapeAttr(value) {
+      return escapeHtml(value).replace(/`/g, '&#096;');
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,1556 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>115 牙體技術師國考衝刺班 - 滾動式報名與出席管理系統</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- React & ReactDOM CDN -->
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+  <!-- Babel for JSX Compilation -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <!-- Google Fonts & FontAwesome Icons -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <style>
+    body {
+      font-family: 'Noto Sans TC', sans-serif;
+      background-color: #f8fafc;
+    }
+    /* 自訂捲軸樣式 */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+  </style>
+</head>
+<body class="min-h-screen pb-12">
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    // 精確牙體技術師課輔衝刺課表 (已新增備份預設 notes 欄位)
+    const DENTAL_SESSIONS = [
+      { key: "0630", date: "06/30", day: "二", time: "下午 13:00-16:00", subject: "局部活動義齒技術學", teacher: "謝承勛", type: "tutoring", classroom: "C205 正課教室", notes: "" },
+      { key: "0701", date: "07/01", day: "三", time: "全天班 (09:00-16:00)", subject: "全口義齒排列(術科)", teacher: "林聖傑 (傑)", type: "tutoring", classroom: "G703 實作教室", notes: "請同學務必帶齊全口排列工具及黏土。" },
+      { key: "0702", date: "07/02", day: "四", time: "全天班 (09:00-16:00)", subject: "牙技法規與倫理", teacher: "張正君", type: "tutoring", classroom: "C205 正課教室", notes: "" },
+      { key: "0703", date: "07/03", day: "五", time: "AM 固定義齒 / PM 牙體形雕", subject: "固定義齒技術學 & 牙體形態雕刻", teacher: "薛亞銘 / 董國龍", type: "tutoring", classroom: "C205 / G703", notes: "下午形雕課請帶紅色與藍色雕刻蠟塊。" },
+      { key: "0704", date: "07/04", day: "六", time: "上午 09:00-12:00", subject: "口腔生理學", teacher: "陳竣鋒", type: "tutoring", classroom: "C205 正課教室", notes: "" },
+      { key: "0705", date: "07/05", day: "日", time: "09:00-16:00", subject: "在職專班第一次模擬考", teacher: "系上監考老師", type: "exam", classroom: "C205 / G703", notes: "請準時於 08:45 前至 C205 教室簽到，遲到依國考規範處理。" },
+      { key: "0706", date: "07/06", day: "一", time: "AM 牙科陶瓷 / PM 全口義齒(朱)", subject: "牙科陶瓷技術學 & 全口義齒排列", teacher: "林莉淳 / 朱柏霖", type: "tutoring", classroom: "C205 / G703", notes: "" },
+      { key: "0707", date: "07/07", day: "二", time: "AM 牙科材料* / PM 牙體形雕(崧)", subject: "牙科材料學* & 牙體形態雕刻", teacher: "陳慈徽 / 許洛菘", type: "tutoring", classroom: "C205 / G703", notes: "" },
+      { key: "0708", date: "07/08", day: "三", time: "視簡章規定時間", subject: "聯合免試 (無常規課輔)", teacher: "全體自主行程", type: "event", classroom: "校外/自主", notes: "" },
+      { key: "0709", date: "07/09", day: "四", time: "AM 兒童牙科 / PM 牙體形態學", subject: "兒童牙科技術學 & 牙體形態學", teacher: "邱香婷 / 簡裕庭", type: "tutoring", classroom: "C205 正課教室", notes: "" },
+      { key: "0711", date: "07/11", day: "六", time: "五專 & 在職 仿真模擬", subject: "第一次仿真模擬考 (第一天)", teacher: "仿真考小組", type: "exam", classroom: "C205 / G703", notes: "仿真全套學術科模擬，請著實驗衣並備齊所有器械。" },
+      { key: "0712", date: "07/12", day: "日", time: "五專 & 在職 仿真模擬", subject: "第一次仿真模擬考 (第二天)", teacher: "仿真考小組", type: "exam", classroom: "C205 / G703", notes: "" },
+      { key: "0713", date: "07/13", day: "一", time: "全天班 (09:00-16:00)", subject: "牙科矯正技術學", teacher: "邱香婷", type: "tutoring", classroom: "C205 正課教室", notes: "" },
+      { key: "0714", date: "07/14", day: "二", time: "AM 牙體形雕(董) / PM 局部活動義齒", subject: "牙體形態雕刻 & 局部活動義齒技術", teacher: "董國龍 / 謝承勛", type: "tutoring", classroom: "C205 / G703", notes: "" },
+      { key: "0715", date: "07/15", day: "三", time: "全天班 (09:00-16:00)", subject: "全口義齒排列(術科)", teacher: "林聖傑 (傑)", type: "tutoring", classroom: "G703 實作教室", notes: "" },
+      { key: "0716", date: "07/16", day: "四", time: "全天班 (09:00-16:00)", subject: "全口活動義齒技術學", teacher: "黃菁芳", type: "tutoring", classroom: "C205 正課教室", notes: "" },
+      { key: "0718", date: "07/18", day: "六", time: "五專 & 在職 仿真模擬", subject: "第二次仿真模擬考 (第一天)", teacher: "仿真考小組", type: "exam", classroom: "C205 / G703", notes: "考前最後大模考，成績將作為最終衝刺評估指標！" },
+      { key: "0719", date: "07/19", day: "日", time: "五專 & 在職 仿真模擬", subject: "第二次仿真模擬考 (第二天)", teacher: "仿真考小組", type: "exam", classroom: "C205 / G703", notes: "" },
+      { key: "0720", date: "07/20", day: "一", time: "AM 牙體形態 / PM 牙體形雕(崧)", subject: "牙體形態學 & 牙體形態雕刻", teacher: "簡裕庭 / 許洛菘", type: "tutoring", classroom: "C205 / G703", notes: "" },
+      { key: "0721", date: "07/21", day: "二", time: "AM 牙科材料* / PM 牙技法規", subject: "牙科材料學* & 牙技法規與倫理", teacher: "陳慈徽 / 張正君", type: "tutoring", classroom: "C205 正課教室", notes: "" },
+      { key: "0722", date: "07/22", day: "三", time: "全天班 (09:00-16:00)", subject: "全口義齒排列(術科)", teacher: "朱柏霖 (朱)", type: "tutoring", classroom: "G703 實作教室", notes: "" },
+      { key: "0723", date: "07/23", day: "四", time: "AM 考前事項宣達* / PM 祈福活動", subject: "考前重要宣達事項 & 祈福大會", teacher: "班級導師 / 系主任", type: "event", classroom: "C205 / 祈福會場", notes: "祈福大會備有包子與粽子，預祝大家金榜題名！" },
+      { key: "0725", date: "07/25", day: "六", time: "出發日 / 看考場", subject: "北上國考 (交通與考場巡禮)", teacher: "帶隊老師", type: "national_exam", classroom: "北部試區", notes: "遊覽車將於上午 08:30 於校門口準時發車，請勿遲到。" },
+      { key: "0726", date: "07/26", day: "日", time: "正式考試 (第一天)", subject: "牙體技術師國家考試 - 學科與術科", teacher: "考選部", type: "national_exam", classroom: "考選部指定試場", notes: "記得攜帶身分證、准考證及規定文具器械。" },
+      { key: "0727", date: "07/27", day: "一", time: "正式考試 (第二天)", subject: "牙體技術師國家考試 - 學科與術科", teacher: "考選部", type: "national_exam", classroom: "考選部指定試場", notes: "" },
+      { key: "0728", date: "07/28", day: "二", time: "考後處理與討論", subject: "返校疑議處理", teacher: "系上專業團隊", type: "national_exam", classroom: "系辦公室", notes: "對試題答案有疑慮者，請攜帶佐證資料到系辦公室填寫疑議表。" }
+    ];
+
+    // 初始化模擬學生名單 (含密碼欄位)
+    const INITIAL_STUDENTS = [
+      { id: "115001", name: "張育誠", password: "115", year: "115級 (2026)", type: "在職專班", attendance: { "0630": "attend", "0701": "tentative", "0702": "absent", "0703": "attend", "0704": "attend", "0705": "attend" } },
+      { id: "115002", name: "陳映婕", password: "115", year: "115級 (2026)", type: "五專部", attendance: { "0630": "attend", "0701": "attend", "0702": "attend", "0703": "attend", "0704": "attend", "0705": "attend" } },
+      { id: "115003", name: "林楷瀚", password: "115", year: "115級 (2026)", type: "在職專班", attendance: { "0630": "tentative", "0701": "attend", "0702": "absent", "0703": "tentative", "0704": "absent", "0705": "attend" } },
+      { id: "115004", name: "黃歆雅", password: "115", year: "115級 (2026)", type: "五專部", attendance: { "0630": "attend", "0701": "attend", "0702": "attend", "0703": "absent", "0704": "attend", "0705": "attend" } },
+      { id: "115005", name: "徐志傑", password: "115", year: "115級 (2026)", type: "在職專班", attendance: { "0630": "absent", "0701": "tentative", "0702": "attend", "0703": "attend", "0704": "tentative", "0705": "attend" } }
+    ];
+
+    function App() {
+      // 讀取本地快取或使用預設值
+      const [students, setStudents] = useState(() => {
+        const saved = localStorage.getItem('dental_exam_sprint_students');
+        return saved ? JSON.parse(saved) : INITIAL_STUDENTS;
+      });
+
+      const [sessions, setSessions] = useState(() => {
+        const saved = localStorage.getItem('dental_exam_sprint_sessions');
+        return saved ? JSON.parse(saved) : DENTAL_SESSIONS;
+      });
+
+      // UI 提示與彈窗狀態
+      const [toast, setToast] = useState({ show: false, message: '', type: 'success' });
+      const [confirmModal, setConfirmModal] = useState({ show: false, message: '', onConfirm: null });
+
+      // 頁籤控制：'student' 或是 'admin'
+      const [activeTab, setActiveTab] = useState('student');
+
+      // 權限控管狀態
+      const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
+      const [adminPasswordInput, setAdminPasswordInput] = useState('');
+      const [studentPasswordInput, setStudentPasswordInput] = useState('');
+
+      // 課表類型過濾器
+      const [filterType, setFilterType] = useState('all');
+
+      // 搜尋學生關鍵字與選中學生
+      const [searchQuery, setSearchQuery] = useState('');
+      const [selectedStudent, setSelectedStudent] = useState(null);
+
+      // 新生報名表單狀態
+      const [newStudent, setNewStudent] = useState({ id: '', name: '', password: '', year: '115級 (2026)', type: '在職專班' });
+      const [showRegisterForm, setShowRegisterForm] = useState(false);
+
+      // 新增課程區塊顯示控制
+      const [newSession, setNewSession] = useState({ date: '', day: '六', time: '', subject: '', teacher: '', type: 'tutoring', classroom: 'C205 正課教室', notes: '' });
+      const [showAddSession, setShowAddSession] = useState(false);
+
+      // 備份還原文字區
+      const [showBackup, setShowBackup] = useState(false);
+      const [backupText, setBackupText] = useState('');
+
+      // 學生端視圖模式切換：'calendar'（日曆確認） 或是 'list'（清單快速勾選）
+      const [studentViewMode, setStudentViewMode] = useState('calendar');
+      const [calendarMonth, setCalendarMonth] = useState(7); // 預設顯示 7 月（課表主體）
+      const [selectedCalendarDate, setSelectedCalendarDate] = useState("0701"); // 日曆點選的日期 key
+
+      // 管理者深入控制：某特定日期的出席名單與注意事項編輯器
+      const [activeAdminSession, setActiveAdminSession] = useState(null);
+      const [sessionNotesInput, setSessionNotesInput] = useState('');
+
+      // 同步到 LocalStorage
+      useEffect(() => {
+        localStorage.setItem('dental_exam_sprint_students', JSON.stringify(students));
+      }, [students]);
+
+      useEffect(() => {
+        localStorage.setItem('dental_exam_sprint_sessions', JSON.stringify(sessions));
+      }, [sessions]);
+
+      // 自訂輕量化 Toast 訊息發佈器
+      const showToast = (message, type = 'success') => {
+        setToast({ show: true, message, type });
+        setTimeout(() => {
+          setToast(prev => ({ ...prev, show: false }));
+        }, 3500);
+      };
+
+      // 處理學生搜尋並驗證密碼
+      const handleSearch = (e) => {
+        e.preventDefault();
+        const found = students.find(
+          s => s.name.trim() === searchQuery.trim() || s.id.trim() === searchQuery.trim()
+        );
+        if (found) {
+          const correctPassword = found.password || "115";
+          if (studentPasswordInput === correctPassword) {
+            setSelectedStudent(found);
+            showToast(`登入成功！哈囉 ${found.name} 同學。`);
+          } else {
+            showToast("密碼不正確！請向幹部核對或重設密碼。", "warning");
+          }
+        } else {
+          showToast("找不到該名同學！如果是首次登記，請點選下方『新同學首次登記』。", "warning");
+          setSelectedStudent(null);
+        }
+      };
+
+      // 管理員登入認證
+      const handleAdminLogin = (e) => {
+        e.preventDefault();
+        if (adminPasswordInput === 'admin115') {
+          setIsAdminAuthenticated(true);
+          showToast("管理權限驗證成功，歡迎回到總務後台！");
+        } else {
+          showToast("管理密碼錯誤！請重新輸入（預設為 admin115）", "warning");
+        }
+      };
+
+      // 管理員登出
+      const handleAdminLogout = () => {
+        setIsAdminAuthenticated(false);
+        setAdminPasswordInput('');
+        setActiveTab('student');
+        showToast("已安全登出管理系統。");
+      };
+
+      // 學生/管理員自主變更出席狀態
+      const updateAttendance = (studentId, sessionKey, status) => {
+        setStudents(prev => prev.map(student => {
+          if (student.id === studentId) {
+            return {
+              ...student,
+              attendance: {
+                ...student.attendance,
+                [sessionKey]: status
+              }
+            };
+          }
+          return student;
+        }));
+        
+        // 即時同步更新當前選取學生的狀態
+        if (selectedStudent && selectedStudent.id === studentId) {
+          setSelectedStudent(prev => ({
+            ...prev,
+            attendance: {
+              ...prev.attendance,
+              [sessionKey]: status
+            }
+          }));
+        }
+        showToast("出席狀態已即時更新並儲存！");
+      };
+
+      // 註冊新同學
+      const handleRegister = (e) => {
+        e.preventDefault();
+        if (!newStudent.id || !newStudent.name) {
+          showToast("學號與姓名皆為必填項目！", "warning");
+          return;
+        }
+
+        if (students.some(s => s.id === newStudent.id)) {
+          showToast("此學號已被註冊過！請直接在上方搜尋您的姓名或學號。", "warning");
+          return;
+        }
+
+        const passToSet = newStudent.password || "115";
+
+        const newEntry = {
+          ...newStudent,
+          password: passToSet,
+          attendance: sessions.reduce((acc, curr) => ({ ...acc, [curr.key]: 'absent' }), {})
+        };
+
+        setStudents(prev => [...prev, newEntry]);
+        setSelectedStudent(newEntry);
+        setSearchQuery(newEntry.name);
+        setStudentPasswordInput(passToSet);
+        showToast(`登記成功！歡迎 ${newEntry.name} 同學。`);
+        setShowRegisterForm(false);
+        setNewStudent({ id: '', name: '', password: '', year: '115級 (2026)', type: '在職專班' });
+      };
+
+      // 管理員手動新增堂數
+      const handleAddSession = (e) => {
+        e.preventDefault();
+        if (!newSession.date || !newSession.subject) {
+          showToast("日期與科目為必填！", "warning");
+          return;
+        }
+        const key = newSession.date.replace("/", "");
+        const newObj = {
+          key,
+          ...newSession
+        };
+        setSessions(prev => [...prev, newObj]);
+        showToast(`成功新增一堂行程：${newSession.subject}`);
+        setShowAddSession(false);
+        setNewSession({ date: '', day: '六', time: '', subject: '', teacher: '', type: 'tutoring', classroom: 'C205 正課教室', notes: '' });
+      };
+
+      // 管理員存取/更新課程注意事項
+      const handleSaveNotes = () => {
+        if (!activeAdminSession) return;
+        setSessions(prev => prev.map(s => {
+          if (s.key === activeAdminSession.key) {
+            return { ...s, notes: sessionNotesInput };
+          }
+          return s;
+        }));
+        // 即時更新當下預覽的 Session 物件
+        setActiveAdminSession(prev => ({ ...prev, notes: sessionNotesInput }));
+        showToast(`成功更新 ${activeAdminSession.date} 的幹部注意事項，學生端已即時同步！`);
+      };
+
+      // 複製出席情況至 LINE 群組
+      const copyToClipboard = (session) => {
+        const attendees = students.filter(st => st.attendance[session.key] === 'attend');
+        const tentatives = students.filter(st => st.attendance[session.key] === 'tentative');
+        const absentees = students.filter(st => st.attendance[session.key] === 'absent' || !st.attendance[session.key]);
+
+        const text = `【115牙技國考衝刺 📢 出席回報】
+📅 日期：${session.date} (${session.day}) ${session.time}
+📚 講題/行程：${session.subject}
+📍 教室：${session.classroom}
+👨‍🏫 講師/負責：${session.teacher}
+⚠️ 注意事項：${session.notes || '無特別宣達'}
+--------------------------
+🟢 確定出席 (${attendees.length}人)：
+${attendees.map(s => `${s.name}(${s.type === '在職專班' ? '在職' : '五專'})`).join('、') || '暫無'}
+
+🟡 臨時待定 (${tentatives.length}人，前一天確認)：
+${tentatives.map(s => s.name).join('、') || '暫無'}
+
+🔴 無法出席 (${absentees.length}人)：
+${absentees.map(s => s.name).join('、') || '暫無'}
+
+💡 在職專班同學若工作或值班有臨時異動，隨時點擊網頁更新即可，統計名冊將自動重整！`;
+
+        const dummy = document.createElement("textarea");
+        document.body.appendChild(dummy);
+        dummy.value = text;
+        dummy.select();
+        document.execCommand("copy");
+        document.body.removeChild(dummy);
+        showToast(`🎉 已複製『${session.date}』的 LINE 通報文字！`);
+      };
+
+      // 匯出 CSV 報表
+      const exportToCSV = () => {
+        let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+        csvContent += "學號,姓名,畢業年份,學籍班別,個人登入密碼," + sessions.map(s => `${s.date}(${s.subject})`).join(",") + "\n";
+        
+        students.forEach(st => {
+          const row = [
+            st.id,
+            st.name,
+            st.year,
+            st.type,
+            st.password || "115",
+            sessions.map(s => {
+              const status = st.attendance[s.key];
+              if (status === 'attend') return "出席";
+              if (status === 'tentative') return "待定";
+              return "不出席";
+            }).join(",")
+          ];
+          csvContent += row.join(",") + "\n";
+        });
+
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `115牙技國考衝刺班出席名單_${new Date().toISOString().slice(0,10)}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        showToast("CSV 報表導出完成！");
+      };
+
+      const exportBackup = () => {
+        const dataStr = JSON.stringify({ students, sessions }, null, 2);
+        setBackupText(dataStr);
+        setShowBackup(true);
+        showToast("備份資料已產生！");
+      };
+
+      const importBackup = () => {
+        try {
+          const parsed = JSON.parse(backupText);
+          if (parsed.students && parsed.sessions) {
+            setStudents(parsed.students);
+            setSessions(parsed.sessions);
+            showToast("資料還原成功！");
+            setShowBackup(false);
+          } else {
+            showToast("備份格式錯誤，無法解析。", "warning");
+          }
+        } catch (error) {
+          showToast("解析失敗，請確認代碼格式。", "warning");
+        }
+      };
+
+      const getSessionBadge = (type) => {
+        switch (type) {
+          case 'tutoring':
+            return { label: '課輔實作', style: 'bg-indigo-50 text-indigo-700 border-indigo-200' };
+          case 'exam':
+            return { label: '仿真模考', style: 'bg-amber-50 text-amber-700 border-amber-200' };
+          case 'event':
+            return { label: '特別活動', style: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+          case 'national_exam':
+            return { label: '國家考試', style: 'bg-rose-50 text-rose-700 border-rose-200' };
+          default:
+            return { label: '其他行程', style: 'bg-slate-50 text-slate-700 border-slate-200' };
+        }
+      };
+
+      const filteredSessions = sessions.filter(s => {
+        if (filterType === 'all') return true;
+        if (filterType === 'tutoring') return s.type === 'tutoring';
+        if (filterType === 'exam') return s.type === 'exam' || s.type === 'national_exam';
+        if (filterType === 'event') return s.type === 'event';
+        return true;
+      });
+
+      // 2026年 日曆網格生成函數 (6月和7月)
+      // 2026/06/01 是星期一 (Offset = 1)，共 30 天
+      // 2026/07/01 是星期三 (Offset = 3)，共 31 天
+      const generateCalendarGrid = (month) => {
+        const monthDays = month === 6 ? 30 : 31;
+        const startOffset = month === 6 ? 1 : 3;
+        const grid = [];
+        for (let i = 0; i < startOffset; i++) {
+          grid.push(null); // 前置空白格
+        }
+        for (let d = 1; d <= monthDays; d++) {
+          grid.push(d);
+        }
+        return grid;
+      };
+
+      return (
+        <div className="min-h-screen">
+          
+          {/* 全域自訂 Toast */}
+          {toast.show && (
+            <div className={`fixed top-5 right-5 z-50 flex items-center gap-2 px-5 py-3.5 rounded-xl shadow-xl border text-sm font-semibold transition-all duration-300 transform translate-y-0 ${
+              toast.type === 'success' ? 'bg-emerald-50 text-emerald-800 border-emerald-200' :
+              toast.type === 'warning' ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-slate-800 text-white border-slate-700'
+            }`}>
+              <i className={`fa-solid ${
+                toast.type === 'success' ? 'fa-circle-check text-emerald-500' :
+                toast.type === 'warning' ? 'fa-circle-exclamation text-amber-500' : 'fa-circle-info text-indigo-400'
+              } text-base`}></i>
+              {toast.message}
+            </div>
+          )}
+
+          {/* 自訂 Confirm 對話方塊 */}
+          {confirmModal.show && (
+            <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+              <div className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-slate-100 transform transition-all">
+                <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-full flex items-center justify-center text-xl mb-4">
+                  <i className="fa-solid fa-triangle-exclamation"></i>
+                </div>
+                <h4 className="text-lg font-bold text-slate-800 mb-2">確定要執行此操作嗎？</h4>
+                <p className="text-slate-500 text-sm mb-6">{confirmModal.message}</p>
+                <div className="flex gap-3 justify-end">
+                  <button 
+                    onClick={() => setConfirmModal({ show: false, message: '', onConfirm: null })}
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs transition-colors"
+                  >
+                    取消
+                  </button>
+                  <button 
+                    onClick={() => {
+                      if(confirmModal.onConfirm) confirmModal.onConfirm();
+                      setConfirmModal({ show: false, message: '', onConfirm: null });
+                    }}
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl text-xs transition-colors"
+                  >
+                    確認刪除
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 頂部導覽列 */}
+          <nav className="bg-slate-900 text-white py-4 px-6 shadow-lg mb-8">
+            <div className="max-w-6xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="flex items-center gap-3">
+                <span className="bg-indigo-600 text-white p-2 rounded-xl font-bold text-lg"><i className="fa-solid fa-tooth"></i></span>
+                <div>
+                  <h1 className="text-lg md:text-xl font-bold tracking-wide flex items-center gap-2">
+                    115 牙體技術師 
+                    <span className="text-xs bg-amber-500 text-slate-950 px-2 py-0.5 rounded font-bold">國考衝刺班</span>
+                  </h1>
+                  <p className="text-xs text-slate-400">考前課輔衝刺與動態出席確認系統</p>
+                </div>
+              </div>
+              <div className="flex bg-slate-800 p-1 rounded-lg border border-slate-700">
+                <button 
+                  onClick={() => { setActiveTab('student'); setSelectedStudent(null); setSearchQuery(''); setStudentPasswordInput(''); }}
+                  className={`px-4 py-2 rounded-md font-medium text-sm transition-all ${activeTab === 'student' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:text-white'}`}
+                >
+                  <i className="fa-solid fa-user-pen mr-1.5"></i> 學生登記專區
+                </button>
+                <button 
+                  onClick={() => { setActiveTab('admin'); setIsAdminAuthenticated(false); }}
+                  className={`px-4 py-2 rounded-md font-medium text-sm transition-all ${activeTab === 'admin' ? 'bg-indigo-600 text-white shadow-md' : 'text-slate-300 hover:text-white'}`}
+                >
+                  <i className="fa-solid fa-user-shield mr-1.5"></i> 管理員統計
+                </button>
+              </div>
+            </div>
+          </nav>
+
+          <main className="max-w-6xl mx-auto px-4">
+            
+            {/* 系統說明橫幅 */}
+            <div className="bg-gradient-to-r from-slate-800 to-indigo-900 text-white rounded-2xl p-6 shadow-md mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
+              <div className="space-y-2">
+                <div className="flex flex-wrap gap-2">
+                  <span className="bg-indigo-500/30 text-indigo-300 px-3 py-1 rounded-full text-xs font-semibold tracking-wider">在職專班 & 五專部高度相容</span>
+                  <span className="bg-amber-500/30 text-amber-300 px-3 py-1 rounded-full text-xs font-semibold tracking-wider">正課教室：C205 / 實作教室：G703</span>
+                </div>
+                <h2 className="text-2xl font-bold mt-2 font-semibold">在職與常規同學的時間彈性平台 ✨</h2>
+                <p className="text-slate-300 text-sm max-w-xl">
+                  在職專班同學常因排班或加班動態更改行程。此系統提供**安全密碼保護**與**雙月視覺化日曆**，您可以隨時用手機更動出席狀態，並透過行曆一目了然！
+                </p>
+              </div>
+              <div className="bg-slate-900/40 p-4 rounded-xl border border-slate-700/50 flex gap-4 text-center shrink-0 w-full md:w-auto justify-around">
+                <div>
+                  <div className="text-2xl font-bold text-amber-400">{students.length}</div>
+                  <div className="text-xs text-slate-400">已報名學生</div>
+                </div>
+                <div className="border-r border-slate-700"></div>
+                <div>
+                  <div className="text-2xl font-bold text-indigo-400">{sessions.length}</div>
+                  <div className="text-xs text-slate-400">總體時程週數</div>
+                </div>
+              </div>
+            </div>
+
+            {/* ======================= 學生登記端 ======================= */}
+            {activeTab === 'student' && (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                
+                {/* 左側欄位：快速搜尋與課表速覽 */}
+                <div className="space-y-6 lg:col-span-1">
+                  
+                  {/* 第一步：輸入登入 */}
+                  <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100">
+                    <h3 className="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                      <i className="fa-solid fa-lock-open text-indigo-500"></i> 第一步：身份安全登入
+                    </h3>
+                    <p className="text-slate-500 text-xs mb-4">輸入姓名/學號，以及個人登記密碼（預設同學為 <strong className="text-indigo-600">115</strong>）驗證修改權限。</p>
+                    
+                    <form onSubmit={handleSearch} className="space-y-3">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">姓名或學號</label>
+                        <input 
+                          type="text" 
+                          placeholder="請輸入「姓名」或「學號」" 
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-700 placeholder-slate-400 transition-all text-sm font-semibold"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-500 mb-1">登入密碼 (模擬預設為 115)</label>
+                        <input 
+                          type="password" 
+                          placeholder="請輸入個人密碼" 
+                          value={studentPasswordInput}
+                          onChange={(e) => setStudentPasswordInput(e.target.value)}
+                          className="w-full px-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-700 placeholder-slate-400 transition-all text-sm font-semibold"
+                        />
+                      </div>
+                      <button type="submit" className="w-full bg-indigo-600 text-white font-semibold text-sm py-2.5 rounded-xl hover:bg-indigo-500 transition-colors shadow-md shadow-indigo-100">
+                        安全驗證並登入我的課表
+                      </button>
+                    </form>
+
+                    <div className="border-t border-slate-100 my-5 pt-5 text-center">
+                      <span className="text-xs text-slate-400 block mb-2">名冊內找不到您的資料？</span>
+                      <button 
+                        onClick={() => setShowRegisterForm(!showRegisterForm)}
+                        className="text-indigo-600 hover:text-indigo-700 font-bold text-sm flex items-center justify-center gap-1.5 mx-auto transition-colors"
+                      >
+                        <i className={`fa-solid ${showRegisterForm ? 'fa-circle-minus' : 'fa-circle-plus'}`}></i> 新同學首次登記基本資料
+                      </button>
+                    </div>
+
+                    {/* 新生報名彈出表單 */}
+                    {showRegisterForm && (
+                      <form onSubmit={handleRegister} className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-4 mt-4 transition-all duration-300">
+                        <div className="text-sm font-bold text-slate-700 border-b pb-1.5 mb-2 flex items-center gap-1.5">
+                          <i className="fa-solid fa-id-card text-emerald-500"></i> 填寫基本資料
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-500 mb-1">學號 *</label>
+                          <input 
+                            type="text" 
+                            required
+                            placeholder="例如: 115006"
+                            value={newStudent.id}
+                            onChange={(e) => setNewStudent({...newStudent, id: e.target.value})}
+                            className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-500 mb-1">姓名 *</label>
+                          <input 
+                            type="text" 
+                            required
+                            placeholder="例如: 王小明"
+                            value={newStudent.name}
+                            onChange={(e) => setNewStudent({...newStudent, name: e.target.value})}
+                            className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-500 mb-1">設定個人安全密碼 *</label>
+                          <input 
+                            type="password" 
+                            required
+                            placeholder="此密碼未來登入登記使用"
+                            value={newStudent.password}
+                            onChange={(e) => setNewStudent({...newStudent, password: e.target.value})}
+                            className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-500 mb-1">畢業年份 / 班籍學籍</label>
+                          <input 
+                            type="text" 
+                            placeholder="例如: 115級 (2026)"
+                            value={newStudent.year}
+                            onChange={(e) => setNewStudent({...newStudent, year: e.target.value})}
+                            className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-600"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-500 mb-1">學籍類別</label>
+                          <select 
+                            value={newStudent.type}
+                            onChange={(e) => setNewStudent({...newStudent, type: e.target.value})}
+                            className="w-full px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 font-semibold"
+                          >
+                            <option value="在職專班">在職專班 (視排班滾動變更)</option>
+                            <option value="五專部">五專部 (常規衝刺組)</option>
+                          </select>
+                        </div>
+                        <button type="submit" className="w-full bg-emerald-600 text-white font-bold text-xs py-2.5 rounded-lg hover:bg-emerald-500 transition-colors">
+                          確認登記並載入出席表
+                        </button>
+                      </form>
+                    )}
+                  </div>
+
+                  {/* 衝刺班課表快速卡 */}
+                  <div className="bg-slate-900 text-slate-200 rounded-2xl p-5 shadow-sm space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h3 className="text-sm font-bold text-amber-400 flex items-center gap-2">
+                        <i className="fa-solid fa-calendar-days"></i> 衝刺班日程快覽
+                      </h3>
+                      <span className="text-[10px] bg-slate-800 text-slate-400 px-2 py-0.5 rounded font-semibold">共 {sessions.length} 行程</span>
+                    </div>
+                    <div className="space-y-3.5 max-h-[380px] overflow-y-auto pr-1">
+                      {sessions.map((s) => {
+                        const bData = getSessionBadge(s.type);
+                        return (
+                          <div key={s.key} className="flex gap-3 text-xs items-start border-b border-slate-800 pb-2.5 last:border-0 last:pb-0">
+                            <span className="bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded shrink-0">{s.date} ({s.day})</span>
+                            <div className="space-y-0.5">
+                              <div className="font-bold text-white text-xs">{s.subject}</div>
+                              <div className="text-slate-400 text-[10px]">{s.time} | {s.classroom}</div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 右側：出席登記卡與過濾器 (整合動態日曆檢視) */}
+                {}
+                <div className="lg:col-span-2 space-y-6">
+                  {selectedStudent ? (
+                    <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 space-y-6">
+                      
+                      {/* 個人資訊卡 */}
+                      <div className="bg-indigo-50/50 border border-indigo-100 rounded-xl p-5 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl font-bold text-slate-800">{selectedStudent.name} 同學</span>
+                            <span className="bg-indigo-600 text-white text-[10px] px-2.5 py-0.5 rounded-full font-bold">{selectedStudent.type}</span>
+                          </div>
+                          <div className="text-xs text-slate-500 mt-1 space-x-3">
+                            <span>學號：<strong>{selectedStudent.id}</strong></span>
+                            <span>畢業年份：<strong>{selectedStudent.year}</strong></span>
+                            <span className="text-emerald-700 font-semibold"><i className="fa-solid fa-shield-halved"></i> 已安全鎖定登入</span>
+                          </div>
+                        </div>
+                        <button 
+                          onClick={() => { setSelectedStudent(null); setSearchQuery(''); setStudentPasswordInput(''); }}
+                          className="bg-slate-200 hover:bg-slate-300 text-slate-700 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+                        >
+                          安全登出
+                        </button>
+                      </div>
+
+                      {/* 出席勾選卡片組與過濾器 */}
+                      <div>
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 pb-4 mb-5">
+                          <div>
+                            <h4 className="text-base font-bold text-slate-800 flex items-center gap-2">
+                              <i className="fa-solid fa-list-check text-indigo-500"></i> 第二步：確認出席狀態
+                            </h4>
+                            <p className="text-xs text-slate-400 mt-0.5">可切換【日曆視覺對照】或【傳統清單勾選】</p>
+                          </div>
+                          
+                          {/* 視圖切換 */}
+                          <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 self-start">
+                            <button 
+                              onClick={() => setStudentViewMode('calendar')} 
+                              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${studentViewMode === 'calendar' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                            >
+                              <i className="fa-regular fa-calendar-days"></i> 📅 日曆視覺對照
+                            </button>
+                            <button 
+                              onClick={() => setStudentViewMode('list')} 
+                              className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all flex items-center gap-1 ${studentViewMode === 'list' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+                            >
+                              <i className="fa-solid fa-list-ul"></i> 📋 清單快速勾選
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* ==================== 1. 日曆檢視模式 ==================== */}
+                        {}
+                        {studentViewMode === 'calendar' && (
+                          <div className="space-y-6">
+                            {/* 月份切換與日曆說明 */}
+                            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-bold text-slate-700">選擇月份：</span>
+                                <button 
+                                  onClick={() => { setCalendarMonth(6); setSelectedCalendarDate("0630"); }}
+                                  className={`px-3 py-1 rounded-lg text-xs font-bold ${calendarMonth === 6 ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'}`}
+                                >
+                                  2026年 6月
+                                </button>
+                                <button 
+                                  onClick={() => { setCalendarMonth(7); setSelectedCalendarDate("0701"); }}
+                                  className={`px-3 py-1 rounded-lg text-xs font-bold ${calendarMonth === 7 ? 'bg-indigo-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'}`}
+                                >
+                                  2026年 7月
+                                </button>
+                              </div>
+                              <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-slate-500 font-semibold">
+                                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-emerald-500 rounded-full"></span> 綠色：確定出席</span>
+                                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-amber-400 rounded-full"></span> 黃色：臨時待定</span>
+                                <span className="flex items-center gap-1"><span className="w-2 h-2 bg-rose-500 rounded-full"></span> 紅色：未出席/不出席</span>
+                              </div>
+                            </div>
+
+                            {/* 日曆本體 */}
+                            <div className="border border-slate-150 rounded-2xl p-4 bg-white shadow-sm">
+                              {/* 星期標題 */}
+                              <div className="grid grid-cols-7 gap-2 text-center text-xs font-bold text-slate-400 mb-2 py-1">
+                                <div className="text-rose-500">日</div>
+                                <div>一</div>
+                                <div>二</div>
+                                <div>三</div>
+                                <div>四</div>
+                                <div>五</div>
+                                <div className="text-indigo-600">六</div>
+                              </div>
+                              {/* 日期網格 */}
+                              <div className="grid grid-cols-7 gap-2">
+                                {generateCalendarGrid(calendarMonth).map((day, idx) => {
+                                  if (day === null) {
+                                    return <div key={`empty-${idx}`} className="bg-slate-50/50 rounded-xl min-h-[64px] sm:min-h-[75px] border border-slate-100/30"></div>;
+                                  }
+
+                                  const dateKey = `${calendarMonth.toString().padStart(2, '0')}${day.toString().padStart(2, '0')}`;
+                                  const daySessions = sessions.filter(s => s.key === dateKey);
+                                  const hasSession = daySessions.length > 0;
+                                  
+                                  let bgStyle = "bg-white text-slate-800 hover:bg-slate-50 border-slate-200";
+                                  let statusDot = null;
+
+                                  if (hasSession) {
+                                    const att = selectedStudent.attendance[dateKey] || 'absent';
+                                    if (att === 'attend') {
+                                      bgStyle = "bg-emerald-50/80 text-emerald-900 font-semibold border-emerald-200 hover:bg-emerald-100/80 cursor-pointer";
+                                      statusDot = <span className="w-2 h-2 bg-emerald-500 rounded-full"></span>;
+                                    } else if (att === 'tentative') {
+                                      bgStyle = "bg-amber-50 text-amber-900 font-semibold border-amber-200 hover:bg-amber-100/80 cursor-pointer";
+                                      statusDot = <span className="w-2 h-2 bg-amber-400 rounded-full"></span>;
+                                    } else {
+                                      bgStyle = "bg-rose-50 text-rose-950 border-rose-200 hover:bg-rose-100/80 cursor-pointer";
+                                      statusDot = <span className="w-2 h-2 bg-rose-500 rounded-full"></span>;
+                                    }
+                                  }
+
+                                  const isSelected = selectedCalendarDate === dateKey;
+
+                                  return (
+                                    <div 
+                                      key={dateKey}
+                                      onClick={() => { if (hasSession) setSelectedCalendarDate(dateKey); }}
+                                      className={`relative flex flex-col justify-between p-2 rounded-xl border text-xs min-h-[64px] sm:min-h-[75px] transition-all ${bgStyle} ${
+                                        isSelected ? 'ring-2 ring-indigo-600 border-transparent scale-102 z-10 shadow-md' : ''
+                                      } ${hasSession ? 'cursor-pointer' : 'cursor-default opacity-40 text-slate-300 hover:bg-white border-dashed'}`}
+                                    >
+                                      {/* 日期數字與上課日標誌 */}
+                                      <div className="flex justify-between items-center">
+                                        <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold ${
+                                          isSelected ? 'bg-indigo-600 text-white shadow-xs' : ''
+                                        }`}>{day}</span>
+                                        {hasSession && (
+                                          <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full" title="當天有排課"></span>
+                                        )}
+                                      </div>
+
+                                      {/* 下方標示與縮寫 */}
+                                      <div className="flex items-center justify-between mt-1">
+                                        <span className="text-[9px] scale-90 origin-left text-slate-500 truncate max-w-[42px] sm:max-w-[55px] font-medium">
+                                          {hasSession ? daySessions[0].subject.substring(0,4) : ''}
+                                        </span>
+                                        {statusDot}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            {/* 點選日期之詳細行程與快速修改卡 (增加注意事項展示區) */}
+                            <div className="bg-indigo-900 text-white rounded-2xl p-5 shadow-sm border border-indigo-950 space-y-4 animate-fade-in">
+                              {(() => {
+                                const activeSession = sessions.find(s => s.key === selectedCalendarDate);
+                                if (!activeSession) {
+                                  return (
+                                    <div className="text-center py-4 text-slate-300 text-xs">
+                                      <i className="fa-solid fa-arrow-pointer mr-1"></i> 請點擊日曆上有標記的「有課日期」來查看詳情並修改出席狀態。
+                                    </div>
+                                  );
+                                }
+                                const currentStatus = selectedStudent.attendance[activeSession.key] || 'absent';
+                                const bData = getSessionBadge(activeSession.type);
+                                return (
+                                  <div className="space-y-4">
+                                    <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 border-b border-indigo-800/60 pb-3">
+                                      <div>
+                                        <div className="flex items-center gap-2 flex-wrap">
+                                          <span className="bg-indigo-800 text-indigo-200 font-bold text-xs px-2.5 py-0.5 rounded border border-indigo-700">
+                                            {activeSession.date} ({activeSession.day})
+                                          </span>
+                                          <span className="text-xs text-amber-300 font-semibold"><i className="fa-regular fa-clock mr-1"></i>{activeSession.time}</span>
+                                        </div>
+                                        <h5 className="text-base font-bold mt-1 text-amber-400">{activeSession.subject}</h5>
+                                      </div>
+                                      <div className="text-xs text-right text-indigo-200">
+                                        <div>主講/監考：<strong>{activeSession.teacher}</strong></div>
+                                        <div className="font-semibold text-amber-400"><i className="fa-solid fa-location-dot mr-1"></i>{activeSession.classroom}</div>
+                                      </div>
+                                    </div>
+
+                                    {/* 幹部注意事項 (學生端同步呈現區) */}
+                                    {activeSession.notes && (
+                                      <div className="bg-amber-500/10 border border-amber-500/30 text-amber-200 rounded-xl p-3.5 text-xs space-y-1 animate-pulse">
+                                        <div className="font-bold text-amber-400 flex items-center gap-1">
+                                          <i className="fa-solid fa-bullhorn"></i> 幹部重要宣達事項：
+                                        </div>
+                                        <div className="whitespace-pre-line text-slate-200 font-medium leading-relaxed">
+                                          {activeSession.notes}
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* 快速出席修改按鈕 */}
+                                    <div className="flex flex-wrap items-center justify-between gap-4 pt-2">
+                                      <div className="text-xs text-indigo-200">
+                                        您的出席狀態：
+                                        {currentStatus === 'attend' && <span className="text-emerald-400 font-bold ml-1"><i className="fa-solid fa-circle-check"></i> 確定出席</span>}
+                                        {currentStatus === 'tentative' && <span className="text-amber-300 font-bold ml-1"><i className="fa-solid fa-triangle-exclamation"></i> 臨時待定</span>}
+                                        {currentStatus === 'absent' && <span className="text-rose-400 font-bold ml-1"><i className="fa-solid fa-circle-xmark"></i> 無法出席 / 未填寫</span>}
+                                      </div>
+                                      
+                                      <div className="flex items-center gap-1.5 shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => updateAttendance(selectedStudent.id, activeSession.key, 'attend')}
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${currentStatus === 'attend' ? 'bg-emerald-500 text-white border-2 border-emerald-300' : 'bg-indigo-950/50 text-indigo-200 hover:bg-indigo-800'}`}
+                                        >
+                                          <i className="fa-solid fa-circle-check"></i> 出席
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateAttendance(selectedStudent.id, activeSession.key, 'tentative')}
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${currentStatus === 'tentative' ? 'bg-amber-400 text-slate-900 border-2 border-amber-300' : 'bg-indigo-950/50 text-indigo-200 hover:bg-indigo-800'}`}
+                                        >
+                                          <i className="fa-solid fa-triangle-exclamation"></i> 待定
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateAttendance(selectedStudent.id, activeSession.key, 'absent')}
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${currentStatus === 'absent' ? 'bg-rose-500 text-white border-2 border-rose-300' : 'bg-indigo-950/50 text-indigo-200 hover:bg-indigo-800'}`}
+                                        >
+                                          <i className="fa-solid fa-circle-xmark"></i> 不克出席
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })()}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* ==================== 2. 清單勾選模式 ==================== */}
+                        {}
+                        {studentViewMode === 'list' && (
+                          <div>
+                            {/* 過濾頁籤 */}
+                            <div className="flex bg-slate-100 p-1 rounded-lg border border-slate-200 self-start mb-5 max-w-xs">
+                              <button onClick={() => setFilterType('all')} className={`px-2.5 py-1 rounded text-[11px] font-bold ${filterType === 'all' ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500'}`}>全部</button>
+                              <button onClick={() => setFilterType('tutoring')} className={`px-2.5 py-1 rounded text-[11px] font-bold ${filterType === 'tutoring' ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-500'}`}>課輔</button>
+                              <button onClick={() => setFilterType('exam')} className={`px-2.5 py-1 rounded text-[11px] font-bold ${filterType === 'exam' ? 'bg-white text-amber-700 shadow-sm' : 'text-slate-500'}`}>考程</button>
+                              <button onClick={() => setFilterType('event')} className={`px-2.5 py-1 rounded text-[11px] font-bold ${filterType === 'event' ? 'bg-white text-emerald-700 shadow-sm' : 'text-slate-500'}`}>特別行程</button>
+                            </div>
+
+                            <div className="space-y-4 max-h-[600px] overflow-y-auto pr-1">
+                              {filteredSessions.map(session => {
+                                const currentStatus = selectedStudent.attendance[session.key] || 'absent';
+                                const bData = getSessionBadge(session.type);
+                                return (
+                                  <div key={session.key} className="border border-slate-100 rounded-xl p-4 hover:border-indigo-100 hover:bg-slate-50/30 transition-all">
+                                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                                      <div className="flex items-start gap-3 w-full">
+                                        <div className="bg-slate-100 text-slate-700 font-bold px-3 py-1.5 rounded-lg text-sm shrink-0 text-center min-w-[55px]">
+                                          <div className="text-[10px] text-slate-500">{session.day}</div>
+                                          <div className="text-sm leading-none text-slate-800 mt-1">{session.date}</div>
+                                        </div>
+                                        <div className="space-y-1 w-full">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="font-bold text-slate-800 text-sm">{session.subject}</span>
+                                            <span className={`text-[9px] px-2 py-0.5 rounded-full border font-bold ${bData.style}`}>{bData.label}</span>
+                                          </div>
+                                          <div className="text-xs text-slate-500 flex flex-wrap gap-x-3 gap-y-1">
+                                            <span><i className="fa-regular fa-clock mr-1"></i>{session.time}</span>
+                                            <span><i className="fa-solid fa-tooth mr-1"></i>師資：{session.teacher}</span>
+                                            <span className="font-semibold text-indigo-600"><i className="fa-solid fa-location-dot mr-1"></i>{session.classroom}</span>
+                                          </div>
+                                          
+                                          {/* 幹部注意事項同步呈現 (清單模式) */}
+                                          {session.notes && (
+                                            <div className="mt-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-2.5 text-xs">
+                                              <strong className="text-amber-900"><i className="fa-solid fa-bullhorn mr-1"></i>注意事項：</strong>
+                                              <span className="text-slate-700 whitespace-pre-line">{session.notes}</span>
+                                            </div>
+                                          )}
+                                        </div>
+                                      </div>
+
+                                      {/* 出席狀態三鍵按鈕組 */}
+                                      <div className="flex items-center gap-1.5 self-end md:self-center shrink-0">
+                                        <button
+                                          type="button"
+                                          onClick={() => updateAttendance(selectedStudent.id, session.key, 'attend')}
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${currentStatus === 'attend' ? 'bg-emerald-100 text-emerald-800 border-2 border-emerald-500' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'}`}
+                                        >
+                                          <i className="fa-solid fa-circle-check"></i> 確定出席
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateAttendance(selectedStudent.id, session.key, 'tentative')}
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${currentStatus === 'tentative' ? 'bg-amber-100 text-amber-800 border-2 border-amber-400' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'}`}
+                                        >
+                                          <i className="fa-solid fa-triangle-exclamation"></i> 臨時待定
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => updateAttendance(selectedStudent.id, session.key, 'absent')}
+                                          className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1 ${currentStatus === 'absent' ? 'bg-rose-100 text-rose-800 border-2 border-rose-400' : 'bg-slate-50 text-slate-600 border border-slate-200 hover:bg-slate-100'}`}
+                                        >
+                                          <i className="fa-solid fa-circle-xmark"></i> 無法出席
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                      </div>
+
+                      <div className="text-center py-4 bg-slate-50 rounded-xl text-slate-500 text-xs">
+                        <i className="fa-solid fa-circle-info text-indigo-500 mr-1"></i> 您登記的個人狀態將即時同步於管理員名冊中。
+                      </div>
+
+                    </div>
+                  ) : (
+                    <div className="bg-white rounded-2xl p-12 shadow-sm border border-slate-100 text-center flex flex-col items-center justify-center min-h-[400px]">
+                      <div className="w-20 h-20 bg-indigo-50 text-indigo-500 rounded-full flex items-center justify-center mb-6 text-3xl">
+                        <i className="fa-solid fa-fingerprint"></i>
+                      </div>
+                      <h3 className="text-xl font-bold text-slate-800 mb-2">國考衝刺 出席確認登入</h3>
+                      <p className="text-slate-500 text-sm max-w-sm mb-6 leading-relaxed">
+                        請在左側輸入您的<strong>「姓名 / 學號」</strong>與<strong>「密碼」</strong>解鎖個人卡，便能即時對照雙月曆勾選每堂課的出席狀況。
+                      </p>
+                      <div className="flex gap-4">
+                        <span className="text-xs text-slate-400"><i className="fa-solid fa-shield text-emerald-500"></i> 安全密碼保護</span>
+                        <span className="text-xs text-slate-400"><i className="fa-solid fa-check text-emerald-500"></i> 視覺化雙月曆</span>
+                        <span className="text-xs text-slate-400"><i className="fa-solid fa-check text-emerald-500"></i> 課前 24h 彈性更動</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            )}
+
+            {/* ======================= 管理員後台統計 ======================= */}
+            {}
+            {activeTab === 'admin' && (
+              <div>
+                {!isAdminAuthenticated ? (
+                  /* 管理權限密碼鎖介面 */
+                  <div className="max-w-md mx-auto bg-white rounded-2xl p-8 shadow-md border border-slate-100 text-center">
+                    <div className="w-16 h-16 bg-slate-900 text-amber-400 rounded-full flex items-center justify-center mx-auto text-2xl mb-5 shadow-inner">
+                      <i className="fa-solid fa-key"></i>
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-800 mb-2">管理權限安全鎖定</h3>
+                    <p className="text-slate-500 text-xs mb-6">
+                      此分頁涉及全班基本資料與名冊統計權限，請輸入管理密碼進行身份驗證（預設密碼為 <strong className="text-indigo-600">admin115</strong>）
+                    </p>
+                    <form onSubmit={handleAdminLogin} className="space-y-4">
+                      <input 
+                        type="password" 
+                        required
+                        placeholder="請輸入管理密碼" 
+                        value={adminPasswordInput}
+                        onChange={(e) => setAdminPasswordInput(e.target.value)}
+                        className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-700 placeholder-slate-400 transition-all font-semibold text-center tracking-widest text-sm"
+                      />
+                      <div className="flex gap-2">
+                        <button 
+                          type="button" 
+                          onClick={() => setActiveTab('student')}
+                          className="w-1/2 bg-slate-100 text-slate-600 font-bold text-sm py-2.5 rounded-xl hover:bg-slate-200 transition-colors"
+                        >
+                          返回學生專區
+                        </button>
+                        <button 
+                          type="submit" 
+                          className="w-1/2 bg-indigo-600 text-white font-bold text-sm py-2.5 rounded-xl hover:bg-indigo-500 transition-colors shadow-md shadow-indigo-100"
+                        >
+                          確認解鎖
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                ) : (
+                  /* 認證成功的管理員後台 */
+                  <div className="space-y-8">
+                    
+                    {/* 第一區：管理員全局控制台 */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h3 className="text-lg font-bold text-slate-800">115 牙體技術國考衝刺總務平台</h3>
+                            <span className="bg-emerald-100 text-emerald-800 text-[10px] px-2 py-0.5 rounded-full font-bold">已授權登入</span>
+                          </div>
+                          <p className="text-slate-500 text-xs mt-1">查看所有學籍名單最新狀態、一鍵導出 CSV 或複製 LINE 群組統計報表。</p>
+                        </div>
+                        <div className="flex flex-wrap gap-2.5">
+                          <button 
+                            onClick={exportToCSV}
+                            className="bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-colors"
+                          >
+                            <i className="fa-solid fa-file-excel"></i> 導出 Excel (CSV)
+                          </button>
+                          <button 
+                            onClick={exportBackup}
+                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-colors"
+                          >
+                            <i className="fa-solid fa-database"></i> 備份與還原系統
+                          </button>
+                          <button 
+                            onClick={() => setShowAddSession(!showAddSession)}
+                            className="bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-colors"
+                          >
+                            <i className="fa-solid fa-calendar-plus"></i> 手動新增課表
+                          </button>
+                          <button 
+                            onClick={handleAdminLogout}
+                            className="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs px-4 py-2.5 rounded-lg flex items-center gap-1.5 transition-colors"
+                          >
+                            <i className="fa-solid fa-right-from-bracket"></i> 登出管理員
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 備份還原代碼編輯器 */}
+                      {showBackup && (
+                        <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mt-6 space-y-3">
+                          <div className="text-xs text-indigo-800 font-bold"><i className="fa-solid fa-circle-exclamation"></i> 系統數據備份與轉載（無雲端本地儲存適用）</div>
+                          <p className="text-slate-500 text-[11px]">
+                            您可以將下方 JSON 大括號內的全部文字複製並儲存。在新手機或新電腦打開此 HTML 時，直接貼上並按還原，即可實現多設備資料同步。
+                          </p>
+                          <textarea 
+                            rows="4" 
+                            value={backupText}
+                            onChange={(e) => setBackupText(e.target.value)}
+                            className="w-full text-xs font-mono p-2 bg-white border border-slate-300 rounded focus:outline-none"
+                          />
+                          <div className="flex gap-2">
+                            <button onClick={importBackup} className="bg-indigo-600 text-white text-xs px-3 py-1.5 rounded font-bold">
+                              導入下方資料
+                            </button>
+                            <button onClick={() => setShowBackup(false)} className="bg-slate-400 text-white text-xs px-3 py-1.5 rounded font-bold">
+                              關閉
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* 新增課表區塊 */}
+                      {showAddSession && (
+                        <form onSubmit={handleAddSession} className="bg-slate-50 p-5 rounded-xl border border-slate-200 mt-6 grid grid-cols-1 md:grid-cols-4 gap-4">
+                          <div className="md:col-span-4 text-sm font-bold text-slate-700 border-b pb-1.5 flex justify-between items-center">
+                            <span>手動新增課表或活動行程</span>
+                            <button type="button" onClick={() => setShowAddSession(false)} className="text-slate-400 hover:text-slate-600"><i className="fa-solid fa-xmark"></i></button>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">日期 (如: 07/04)</label>
+                            <input 
+                              type="text" required placeholder="07/04"
+                              value={newSession.date}
+                              onChange={(e) => setNewSession({...newSession, date: e.target.value})}
+                              className="w-full text-xs px-3 py-2 border border-slate-200 rounded bg-white font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">星期</label>
+                            <select 
+                              value={newSession.day}
+                              onChange={(e) => setNewSession({...newSession, day: e.target.value})}
+                              className="w-full text-xs px-3 py-2 border border-slate-200 rounded bg-white font-semibold"
+                            >
+                              <option value="一">星期一</option>
+                              <option value="二">星期二</option>
+                              <option value="三">星期三</option>
+                              <option value="四">星期四</option>
+                              <option value="五">星期五</option>
+                              <option value="六">星期六</option>
+                              <option value="日">星期日</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">行程類型</label>
+                            <select 
+                              value={newSession.type}
+                              onChange={(e) => setNewSession({...newSession, type: e.target.value})}
+                              className="w-full text-xs px-3 py-2 border border-slate-200 rounded bg-white font-semibold text-slate-700"
+                            >
+                              <option value="tutoring">課輔與實作課</option>
+                              <option value="exam">仿真模擬考</option>
+                              <option value="event">特別活動</option>
+                              <option value="national_exam">國家考試相關</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">上課教室與備註</label>
+                            <input 
+                              type="text" placeholder="例如: G703 實作教室"
+                              value={newSession.classroom}
+                              onChange={(e) => setNewSession({...newSession, classroom: e.target.value})}
+                              className="w-full text-xs px-3 py-2 border border-slate-200 rounded bg-white font-semibold"
+                            />
+                          </div>
+                          <div className="md:col-span-2">
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">講題/考程/行程主題</label>
+                            <input 
+                              type="text" required placeholder="例如: 牙體形態雕刻(崧)"
+                              value={newSession.subject}
+                              onChange={(e) => setNewSession({...newSession, subject: e.target.value})}
+                              className="w-full text-xs px-3 py-2 border border-slate-200 rounded bg-white font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">負責老師 / 監考人員</label>
+                            <input 
+                              type="text" placeholder="例如: 許洛菘"
+                              value={newSession.teacher}
+                              onChange={(e) => setNewSession({...newSession, teacher: e.target.value})}
+                              className="w-full text-xs px-3 py-2 border border-slate-200 rounded bg-white font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-xs font-semibold text-slate-500 mb-1">時間 (如: PM 13:00-16:00)</label>
+                            <input 
+                              type="text" placeholder="下午 13:00-16:00"
+                              value={newSession.time}
+                              onChange={(e) => setNewSession({...newSession, time: e.target.value})}
+                              className="w-full text-xs px-3 py-2 border border-slate-200 rounded bg-white font-semibold"
+                            />
+                          </div>
+                          <div className="md:col-span-4 flex justify-end">
+                            <button type="submit" className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-5 py-2.5 rounded-lg shadow-sm">
+                              確認加入行程
+                            </button>
+                          </div>
+                        </form>
+                      )}
+                    </div>
+
+                    {/* 第二區：每堂行程出席統計、名單透視與 LINE 一鍵複製 */}
+                    {}
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                      {sessions.map(session => {
+                        const attendees = students.filter(st => st.attendance[session.key] === 'attend').length;
+                        const tentatives = students.filter(st => st.attendance[session.key] === 'tentative').length;
+                        const absentees = students.filter(st => !st.attendance[session.key] || st.attendance[session.key] === 'absent').length;
+                        const totalResponse = attendees + tentatives + absentees;
+                        const attendanceRate = totalResponse > 0 ? Math.round((attendees / students.length) * 100) : 0;
+                        const bData = getSessionBadge(session.type);
+
+                        return (
+                          <div key={session.key} className="bg-white rounded-2xl p-5 shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-all">
+                            <div>
+                              <div className="flex justify-between items-start">
+                                <span className="bg-indigo-50 text-indigo-700 font-bold text-xs px-2 py-0.5 rounded border border-indigo-100">
+                                  {session.date} ({session.day})
+                                </span>
+                                <span className={`text-[9px] px-2 py-0.5 rounded font-bold border ${bData.style}`}>
+                                  {bData.label}
+                                </span>
+                              </div>
+                              
+                              <h4 className="text-base font-bold text-slate-800 mt-2.5 line-clamp-1">{session.subject}</h4>
+                              <div className="text-slate-400 text-xs block mb-3 mt-1 space-y-0.5">
+                                <div>主講/監考：<strong className="text-slate-700 font-semibold">{session.teacher}</strong></div>
+                                <div className="text-[11px] text-indigo-600 font-medium"><i className="fa-solid fa-location-dot mr-1"></i>{session.classroom}</div>
+                              </div>
+
+                              {/* 備忘備註簡述 */}
+                              {session.notes && (
+                                <div className="bg-slate-50 border border-slate-100 rounded-lg p-2 mb-3 text-[11px] text-slate-600 line-clamp-1 italic">
+                                  📌 {session.notes}
+                                </div>
+                              )}
+
+                              {/* 視覺統計條 */}
+                              <div className="space-y-2 mb-4">
+                                <div className="flex justify-between text-xs font-semibold text-slate-500">
+                                  <span>預估出席率</span>
+                                  <span>{attendanceRate}%</span>
+                                </div>
+                                <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden flex">
+                                  <div className="bg-emerald-500 h-full" style={{ width: `${(attendees / students.length) * 100}%` }}></div>
+                                  <div className="bg-amber-400 h-full" style={{ width: `${(tentatives / students.length) * 100}%` }}></div>
+                                  <div className="bg-rose-300 h-full" style={{ width: `${(absentees / students.length) * 100}%` }}></div>
+                                </div>
+                                <div className="flex justify-between text-[11px] text-slate-500 font-medium">
+                                  <span>出席: <strong className="text-emerald-600">{attendees}</strong></span>
+                                  <span>待定: <strong className="text-amber-600">{tentatives}</strong></span>
+                                  <span>未到: <strong className="text-rose-500">{absentees}</strong></span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className="space-y-2 pt-2 border-t border-slate-100">
+                              <button 
+                                onClick={() => {
+                                  setActiveAdminSession(session);
+                                  setSessionNotesInput(session.notes || '');
+                                }}
+                                className="w-full bg-indigo-50 hover:bg-indigo-100 text-indigo-800 text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-indigo-200"
+                              >
+                                <i className="fa-solid fa-clipboard-list text-sm"></i> 🔍 名單與注意事項
+                              </button>
+                              <button 
+                                onClick={() => copyToClipboard(session)}
+                                className="w-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold py-2 px-3 rounded-xl flex items-center justify-center gap-1.5 transition-colors border border-emerald-200"
+                              >
+                                <i className="fa-brands fa-line text-sm"></i> 複製 LINE 群組通報
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* ==================== 課程出缺席名單與注意事項 Modal ==================== */}
+                    {}
+                    {activeAdminSession && (
+                      <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+                        <div className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-hidden shadow-2xl border border-slate-100 flex flex-col transform transition-all animate-fade-in">
+                          {/* Modal Header */}
+                          <div className="bg-slate-900 text-white p-5 flex justify-between items-center shrink-0">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="bg-indigo-600 text-white text-xs font-bold px-2.5 py-0.5 rounded">
+                                  {activeAdminSession.date} ({activeAdminSession.day})
+                                </span>
+                                <span className="text-xs text-slate-300">{activeAdminSession.time}</span>
+                              </div>
+                              <h4 className="text-lg font-bold mt-1 text-amber-400">{activeAdminSession.subject}</h4>
+                            </div>
+                            <button 
+                              onClick={() => setActiveAdminSession(null)}
+                              className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 flex items-center justify-center text-white transition-colors"
+                            >
+                              <i className="fa-solid fa-xmark"></i>
+                            </button>
+                          </div>
+
+                          {/* Modal Content Body */}
+                          <div className="p-6 overflow-y-auto space-y-6 flex-1 bg-slate-50">
+                            
+                            {/* 注意事項填寫區 */}
+                            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm space-y-3">
+                              <h5 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                <i className="fa-solid fa-pen-to-square text-indigo-500"></i> 本堂課程注意事項 / 備忘錄公告
+                              </h5>
+                              <p className="text-xs text-slate-500">學生登入系統後，不論在行曆或清單中，皆可同步看見此注意事項（例如：工具攜帶提醒、考試大綱說明）。</p>
+                              <textarea
+                                rows="3"
+                                value={sessionNotesInput}
+                                onChange={(e) => setSessionNotesInput(e.target.value)}
+                                placeholder="請在此輸入對應的注意事項... 例如：明天全口排列請帶排牙專用蠟與手動器械，當天早上需提前15分鐘排好石膏模型。"
+                                className="w-full text-sm p-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:bg-white text-slate-800 placeholder-slate-400 font-medium transition-all"
+                              />
+                              <div className="flex justify-end">
+                                <button 
+                                  onClick={handleSaveNotes}
+                                  className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs px-4 py-2 rounded-lg transition-colors shadow-md shadow-indigo-100 flex items-center gap-1.5"
+                                >
+                                  <i className="fa-solid fa-floppy-disk"></i> 儲存注意事項
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* 今日出席同學名單與未登記名單 */}
+                            <div className="space-y-3">
+                              <h5 className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                                <i className="fa-solid fa-users text-indigo-500"></i> 今日出缺席同學詳細名單
+                              </h5>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                {/* 確定出席 */}
+                                <div className="bg-white p-4 rounded-xl border border-emerald-100 shadow-sm flex flex-col min-h-[250px]">
+                                  <div className="text-emerald-800 font-bold text-xs pb-2 border-b border-emerald-50 mb-3 flex items-center justify-between">
+                                    <span className="flex items-center gap-1.5">
+                                      <span className="w-2 h-2 bg-emerald-500 rounded-full"></span> 🟢 確定出席
+                                    </span>
+                                    <span className="bg-emerald-50 text-emerald-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                                      {students.filter(st => st.attendance[activeAdminSession.key] === 'attend').length} 人
+                                    </span>
+                                  </div>
+                                  <div className="space-y-2 overflow-y-auto max-h-[200px] flex-1 pr-1">
+                                    {students.filter(st => st.attendance[activeAdminSession.key] === 'attend').length === 0 ? (
+                                      <div className="text-slate-400 text-xs text-center py-8">目前暫無同學登記</div>
+                                    ) : (
+                                      students.filter(st => st.attendance[activeAdminSession.key] === 'attend').map(st => (
+                                        <div key={st.id} className="bg-emerald-50/50 p-2 rounded-lg border border-emerald-100/50 flex items-center justify-between">
+                                          <span className="text-xs font-bold text-slate-800">{st.name}</span>
+                                          <span className="text-[9px] bg-white text-emerald-700 border border-emerald-200 px-1.5 py-0.5 rounded font-semibold">
+                                            {st.type === '在職專班' ? '在職' : '五專'}
+                                          </span>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* 臨時待定 */}
+                                <div className="bg-white p-4 rounded-xl border border-amber-100 shadow-sm flex flex-col min-h-[250px]">
+                                  <div className="text-amber-800 font-bold text-xs pb-2 border-b border-amber-50 mb-3 flex items-center justify-between">
+                                    <span className="flex items-center gap-1.5">
+                                      <span className="w-2 h-2 bg-amber-400 rounded-full"></span> 🟡 臨時待定
+                                    </span>
+                                    <span className="bg-amber-50 text-amber-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                                      {students.filter(st => st.attendance[activeAdminSession.key] === 'tentative').length} 人
+                                    </span>
+                                  </div>
+                                  <div className="space-y-2 overflow-y-auto max-h-[200px] flex-1 pr-1">
+                                    {students.filter(st => st.attendance[activeAdminSession.key] === 'tentative').length === 0 ? (
+                                      <div className="text-slate-400 text-xs text-center py-8">目前暫無同學登記</div>
+                                    ) : (
+                                      students.filter(st => st.attendance[activeAdminSession.key] === 'tentative').map(st => (
+                                        <div key={st.id} className="bg-amber-50/50 p-2 rounded-lg border border-amber-100/50 flex items-center justify-between">
+                                          <span className="text-xs font-bold text-slate-800">{st.name}</span>
+                                          <span className="text-[9px] bg-white text-amber-700 border border-amber-200 px-1.5 py-0.5 rounded font-semibold">
+                                            {st.type === '在職專班' ? '在職' : '五專'}
+                                          </span>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* 無法出席 / 未選 */}
+                                <div className="bg-white p-4 rounded-xl border border-rose-100 shadow-sm flex flex-col min-h-[250px]">
+                                  <div className="text-rose-800 font-bold text-xs pb-2 border-b border-rose-50 mb-3 flex items-center justify-between">
+                                    <span className="flex items-center gap-1.5">
+                                      <span className="w-2 h-2 bg-rose-500 rounded-full"></span> 🔴 無法出席 / 未選
+                                    </span>
+                                    <span className="bg-rose-50 text-rose-800 px-2 py-0.5 rounded text-[10px] font-bold">
+                                      {students.filter(st => !st.attendance[activeAdminSession.key] || st.attendance[activeAdminSession.key] === 'absent').length} 人
+                                    </span>
+                                  </div>
+                                  <div className="space-y-2 overflow-y-auto max-h-[200px] flex-1 pr-1">
+                                    {students.filter(st => !st.attendance[activeAdminSession.key] || st.attendance[activeAdminSession.key] === 'absent').length === 0 ? (
+                                      <div className="text-slate-400 text-xs text-center py-8">目前全體皆已登記出席或待定</div>
+                                    ) : (
+                                      students.filter(st => !st.attendance[activeAdminSession.key] || st.attendance[activeAdminSession.key] === 'absent').map(st => (
+                                        <div key={st.id} className="bg-rose-50/50 p-2 rounded-lg border border-rose-100/50 flex items-center justify-between">
+                                          <span className="text-xs font-bold text-slate-800">{st.name}</span>
+                                          <span className="text-[9px] bg-white text-rose-700 border border-rose-200 px-1.5 py-0.5 rounded font-semibold">
+                                            {st.type === '在職專班' ? '在職' : '五專'}
+                                          </span>
+                                        </div>
+                                      ))
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                          </div>
+                          
+                          {/* Footer */}
+                          <div className="bg-slate-100 p-4 border-t border-slate-200 flex justify-end shrink-0">
+                            <button 
+                              onClick={() => setActiveAdminSession(null)}
+                              className="bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs px-5 py-2.5 rounded-xl transition-colors"
+                            >
+                              關閉視窗
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 第三區：完整大名冊 (管理員可直接在此幫同學更動修改密碼，已固定前三列) */}
+                    {}
+                    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+                      <div className="p-6 border-b border-slate-100 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+                        <div>
+                          <h4 className="text-lg font-bold text-slate-800">115 衝刺班全體學籍動態名冊</h4>
+                          <p className="text-slate-400 text-xs mt-0.5">💡 提示：最左側基本欄位已凍結。管理員可以直接在【修改密碼】輸入框打字幫同學更新密碼，系統即時存檔！</p>
+                        </div>
+                        <div className="text-xs bg-slate-50 p-2.5 rounded-lg border border-slate-100 flex flex-wrap items-center gap-4">
+                          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-emerald-500 rounded-full"></span> 確定出席</span>
+                          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-amber-400 rounded-full"></span> 臨時待定</span>
+                          <span className="flex items-center gap-1.5"><span className="w-2.5 h-2.5 bg-rose-400 rounded-full"></span> 無法出席</span>
+                        </div>
+                      </div>
+
+                      {/* 橫向捲動容器 */}
+                      <div className="overflow-x-auto relative">
+                        <table className="w-full text-sm text-left text-slate-700 min-w-[1200px] border-collapse">
+                          <thead className="text-xs text-slate-500 uppercase bg-slate-50 border-b border-slate-200">
+                            <tr>
+                              <th className="sticky left-0 z-30 bg-slate-100 border-b border-slate-200 px-4 py-4 font-bold min-w-[90px] w-[90px] text-slate-700">學號</th>
+                              <th className="sticky left-[90px] z-30 bg-slate-100 border-b border-slate-200 px-4 py-4 font-bold min-w-[95px] w-[95px] text-slate-700">姓名</th>
+                              <th className="sticky left-[185px] z-30 bg-slate-100 border-b border-slate-200 px-4 py-4 font-bold min-w-[105px] w-[105px] text-slate-700 border-r border-slate-200 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.15)]">學籍班別</th>
+                              
+                              <th className="px-4 py-4 font-bold text-center text-indigo-700 min-w-[120px]">修改密碼 (雙擊/點擊打字)</th>
+                              {sessions.map(s => (
+                                <th key={s.key} className="px-3 py-4 text-center font-bold min-w-[75px] border-b border-slate-200">
+                                  <div className="text-slate-700 text-xs">{s.date}</div>
+                                  <div className="text-[9px] text-slate-400 font-medium truncate max-w-[70px] mx-auto" title={s.subject}>{s.subject}</div>
+                                </th>
+                              ))}
+                              <th className="px-5 py-4 text-center font-bold min-w-[80px]">資料管理</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {students.map(student => (
+                              <tr key={student.id} className="group hover:bg-slate-50/70 transition-colors">
+                                <td className="sticky left-0 z-10 bg-white group-hover:bg-slate-50 px-4 py-4 font-mono font-medium text-slate-500 min-w-[90px] w-[90px] transition-colors">
+                                  {student.id}
+                                </td>
+                                <td className="sticky left-[90px] z-10 bg-white group-hover:bg-slate-50 px-4 py-4 font-bold text-slate-800 min-w-[95px] w-[95px] transition-colors">
+                                  {student.name}
+                                </td>
+                                <td className="sticky left-[185px] z-10 bg-white group-hover:bg-slate-50 px-4 py-4 min-w-[105px] w-[105px] transition-colors border-r border-slate-200 shadow-[4px_0_8px_-4px_rgba(0,0,0,0.15)]">
+                                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${student.type === '在職專班' ? 'bg-amber-50 text-amber-700 border border-amber-200' : 'bg-indigo-50 text-indigo-700 border border-indigo-200'}`}>
+                                    {student.type}
+                                  </span>
+                                </td>
+                                
+                                {/* 可直接由管理員編輯更改的行內密碼欄位 */}
+                                <td className="px-4 py-4 text-center bg-indigo-50/20">
+                                  <input 
+                                    type="text" 
+                                    value={student.password || "115"}
+                                    onChange={(e) => {
+                                      const newPass = e.target.value;
+                                      setStudents(prev => prev.map(s => s.id === student.id ? { ...s, password: newPass } : s));
+                                      if (selectedStudent && selectedStudent.id === student.id) {
+                                        setSelectedStudent(prev => ({ ...prev, password: newPass }));
+                                      }
+                                    }}
+                                    className="w-24 px-2 py-1 text-xs text-center font-mono font-bold border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 bg-white text-slate-800 hover:border-slate-300 transition-all"
+                                    title="管理員可在此直接打字修改此同學的密碼"
+                                  />
+                                </td>
+
+                                {sessions.map(s => {
+                                  const att = student.attendance[s.key] || 'absent';
+                                  
+                                  const toggleStatus = () => {
+                                    const nextMap = { 'attend': 'tentative', 'tentative': 'absent', 'absent': 'attend' };
+                                    updateAttendance(student.id, s.key, nextMap[att]);
+                                  };
+
+                                  return (
+                                    <td key={s.key} className="px-2 py-4 text-center">
+                                      <button 
+                                        onClick={toggleStatus}
+                                        className={`w-8 h-8 rounded-full flex items-center justify-center mx-auto transition-all hover:scale-110 ${
+                                          att === 'attend' ? 'bg-emerald-500 text-white shadow-sm' :
+                                          att === 'tentative' ? 'bg-amber-400 text-slate-900 shadow-sm' :
+                                          'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                                        }`}
+                                      >
+                                        {att === 'attend' && <i className="fa-solid fa-check text-[11px]"></i>}
+                                        {att === 'tentative' && <i className="fa-solid fa-question text-[11px]"></i>}
+                                        {att === 'absent' && <i className="fa-solid fa-times text-[11px]"></i>}
+                                      </button>
+                                    </td>
+                                  );
+                                })}
+                                <td className="px-5 py-4 text-center">
+                                  <button 
+                                    onClick={() => {
+                                      setConfirmModal({
+                                        show: true,
+                                        message: `確定要將「${student.name}」同學從國考衝刺名單中刪除嗎？`,
+                                        onConfirm: () => {
+                                          setStudents(prev => prev.filter(s => s.id !== student.id));
+                                          showToast(`已移除 ${student.name} 同學的報名紀錄。`);
+                                        }
+                                      });
+                                    }}
+                                    className="text-rose-600 hover:text-rose-800 font-semibold text-xs flex items-center gap-1 justify-center transition-colors mx-auto"
+                                  >
+                                    <i className="fa-solid fa-trash-can"></i> 刪除
+                                  </button>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+
+                  </div>
+                )}
+              </div>
+            )}
+
+          </main>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
