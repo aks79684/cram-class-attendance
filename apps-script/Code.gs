@@ -197,9 +197,44 @@ function updateAttendance(studentId, password, sessionKey, status) {
 
 function updateAllAttendance(studentId, password) {
   const student = findActiveStudent_(studentId, password);
-  const updated = visibleSessions_().filter((session) => isEditableSession_(session) && !isInfoOnlySession_(session)).map((session) => {
-    return upsertAttendance_(student.student_id, session.session_key, 'attend');
+  const sessions = visibleSessions_().filter((session) => isEditableSession_(session) && !isInfoOnlySession_(session));
+  const attendanceSheet = sheet_(SHEETS.ATTENDANCE);
+  const values = attendanceSheet.getDataRange().getValues();
+  const id = normalizeStudentId_(student.student_id);
+  const now = now_();
+  const existingByKey = {};
+  const dataRows = values.slice(1);
+
+  dataRows.forEach((row, index) => {
+    if (normalizeStudentId_(row[0]) === id) {
+      existingByKey[normalizeKey_(row[1])] = index;
+    }
   });
+
+  const newRows = [];
+  const updated = sessions.map((session) => {
+    const key = normalizeKey_(session.session_key);
+    const existingIndex = existingByKey[key];
+    if (existingIndex !== undefined) {
+      dataRows[existingIndex] = [id, key, 'attend', now];
+    } else {
+      newRows.push([id, key, 'attend', now]);
+    }
+    return { session_key: key, status: 'attend', updated_at: now };
+  });
+
+  if (dataRows.length) {
+    attendanceSheet.getRange(2, 1, dataRows.length, 4).setValues(dataRows.map((row) => [
+      normalizeStudentId_(row[0]),
+      normalizeKey_(row[1]),
+      normalizeStatus_(row[2]),
+      row[3],
+    ]));
+  }
+  if (newRows.length) {
+    attendanceSheet.getRange(attendanceSheet.getLastRow() + 1, 1, newRows.length, 4).setValues(newRows);
+  }
+
   return { updated };
 }
 
