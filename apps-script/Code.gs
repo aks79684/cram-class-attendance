@@ -332,11 +332,34 @@ function attendanceCategories_(students, sessions, attendance) {
       name: student.name,
       year: student.year,
       type: student.type,
+      registered: true,
     };
 
     if (hasTutoring && hasMock) categories.both.students.push(summaryStudent);
     else if (hasTutoring) categories.tutoring_only.students.push(summaryStudent);
     else if (hasMock) categories.mock_only.students.push(summaryStudent);
+  });
+
+  const addedUnregistered = {};
+  oldIntent.records.forEach((record) => {
+    const id = normalizeStudentId_(record.student_id);
+    const nameKey = normalizeName_(record.name);
+    const recordKey = id || nameKey;
+    if (!recordKey || addedUnregistered[recordKey]) return;
+    const matched = students.some((student) => {
+      const studentId = normalizeStudentId_(student.student_id);
+      const studentName = normalizeName_(student.name);
+      return (id && studentId === id) || (!id && nameKey && studentName === nameKey);
+    });
+    if (matched) return;
+    addedUnregistered[recordKey] = true;
+    categories.mock_only.students.push({
+      student_id: id,
+      name: record.name,
+      year: '未註冊',
+      type: '未註冊',
+      registered: false,
+    });
   });
 
   Object.keys(categories).forEach((key) => {
@@ -346,7 +369,7 @@ function attendanceCategories_(students, sessions, attendance) {
 }
 
 function mockIntentByStudent_() {
-  const result = { byId: {}, byName: {} };
+  const result = { byId: {}, byName: {}, records: [] };
   try {
     const csv = UrlFetchApp.fetch(MOCK_INTENT_CSV_URL, { muteHttpExceptions: true }).getContentText('UTF-8');
     const rows = parseCsv_(csv);
@@ -361,9 +384,17 @@ function mockIntentByStudent_() {
       const attend = isTrue_(row[week1Index]) || isTrue_(row[week2Index]);
       if (!attend) return;
       const id = normalizeStudentId_(row[idIndex]);
-      const name = normalizeName_(row[nameIndex]);
-      if (id) result.byId[id] = true;
-      if (name) result.byName[name] = true;
+      const rawName = clean_(row[nameIndex]);
+      const name = normalizeName_(rawName);
+      const record = {
+        student_id: id,
+        name: rawName,
+        week1: isTrue_(row[week1Index]),
+        week2: isTrue_(row[week2Index]),
+      };
+      if (id) result.byId[id] = record;
+      if (name) result.byName[name] = record;
+      result.records.push(record);
     });
   } catch (error) {
     return result;

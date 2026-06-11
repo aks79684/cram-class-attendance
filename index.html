@@ -1314,7 +1314,10 @@
 
     function categorySummaryHtml(category, classes) {
       const rows = Array.isArray(category.students) ? category.students : [];
-      const names = rows.map((student) => escapeHtml(`${student.name} (${student.year || '未填畢業年份'})`)).join('、') || '無';
+      const names = rows.map((student) => {
+        const note = student.registered === false ? '未註冊' : (student.year || '未填畢業年份');
+        return escapeHtml(`${student.name} (${note})`);
+      }).join('、') || '無';
       return `
         <details class="rounded-lg border p-4 ${classes}" ${rows.length > 8 ? '' : 'open'}>
           <summary class="cursor-pointer list-none">
@@ -1349,7 +1352,9 @@
           return;
         }
         students.forEach((student) => {
-          rows.push([category.label, student.student_id || '', student.name || '', student.year || '', student.type || '']);
+          const year = student.registered === false ? '未註冊' : (student.year || '');
+          const type = student.registered === false ? '未註冊' : (student.type || '');
+          rows.push([category.label, student.student_id || '', student.name || '', year, type]);
         });
       });
 
