@@ -14,6 +14,8 @@ const ALLOWED_STATUSES = ['attend', 'absent'];
 const SESSION_FIELDS = ['date', 'day', 'time', 'subject', 'teacher', 'type', 'classroom', 'notes', 'visible'];
 const INFO_ONLY_SESSION_KEYS = ['0708', '0725', '0726', '0727', '0728'];
 const HIGHLIGHT_ONLY_SESSION_KEYS = ['0726', '0727'];
+const MOCK_EXAM_SESSION_KEYS = ['0711', '0712', '0718', '0719'];
+const MOCK_INTENT_CSV_URL = 'https://docs.google.com/spreadsheets/d/1ojWJENirdR5I4W4bga36sIOfrbyRa7cpBmzZdf9yVA0/export?format=csv';
 const DEFAULT_HOME_MESSAGES = [
   ['1', '每天前進一點點', '國考不是一天衝完，是每天多記住一題、多練熟一步。', true, 1],
   ['2', '記得回覆出席', '老師不是要抓人，是要先幫大家準備位置、器材和冷氣。', true, 2],
@@ -295,9 +297,78 @@ function adminSummary() {
   return {
     students,
     sessions: sessions.map((session) => summarizeSession_(session, students, attendance)),
+    attendanceCategories: attendanceCategories_(students, sessions, attendance),
     messages: homeMessages_(),
     announcements: announcements_(),
   };
+}
+
+function attendanceCategories_(students, sessions, attendance) {
+  const tutoringKeys = sessions
+    .filter((session) => session.type === 'tutoring' && !isInfoOnlySession_(session))
+    .map((session) => normalizeKey_(session.session_key));
+  const mockKeys = sessions
+    .filter((session) => MOCK_EXAM_SESSION_KEYS.includes(normalizeKey_(session.session_key)))
+    .map((session) => normalizeKey_(session.session_key));
+  const oldIntent = mockIntentByStudent_();
+  const categories = {
+    tutoring_only: { label: '只去衝刺班課程', count: 0, students: [] },
+    mock_only: { label: '只有參加仿真模擬考', count: 0, students: [] },
+    both: { label: '兩個都參加', count: 0, students: [] },
+  };
+
+  students.forEach((student) => {
+    const id = normalizeStudentId_(student.student_id);
+    const nameKey = normalizeName_(student.name);
+    const studentRows = attendance.filter((row) => normalizeStudentId_(row.student_id) === id);
+    const hasTutoring = studentRows.some((row) => tutoringKeys.includes(normalizeKey_(row.session_key)) && normalizeStatus_(row.status) === 'attend');
+    const mockRows = studentRows.filter((row) => mockKeys.includes(normalizeKey_(row.session_key)));
+    const hasSystemMockResponse = mockRows.length > 0;
+    const hasSystemMockAttend = mockRows.some((row) => normalizeStatus_(row.status) === 'attend');
+    const oldMockAttend = Boolean(oldIntent.byId[id] || oldIntent.byName[nameKey]);
+    const hasMock = hasSystemMockResponse ? hasSystemMockAttend : oldMockAttend;
+    const summaryStudent = {
+      student_id: id,
+      name: student.name,
+      year: student.year,
+      type: student.type,
+    };
+
+    if (hasTutoring && hasMock) categories.both.students.push(summaryStudent);
+    else if (hasTutoring) categories.tutoring_only.students.push(summaryStudent);
+    else if (hasMock) categories.mock_only.students.push(summaryStudent);
+  });
+
+  Object.keys(categories).forEach((key) => {
+    categories[key].count = categories[key].students.length;
+  });
+  return categories;
+}
+
+function mockIntentByStudent_() {
+  const result = { byId: {}, byName: {} };
+  try {
+    const csv = UrlFetchApp.fetch(MOCK_INTENT_CSV_URL, { muteHttpExceptions: true }).getContentText('UTF-8');
+    const rows = parseCsv_(csv);
+    if (rows.length < 2) return result;
+    const headers = rows[0].map((header) => clean_(header));
+    const nameIndex = headers.indexOf('姓名');
+    const idIndex = headers.findIndex((header) => header.indexOf('學號') !== -1);
+    const week1Index = headers.indexOf('第一週模擬考');
+    const week2Index = headers.indexOf('第二週模擬考');
+
+    rows.slice(1).forEach((row) => {
+      const attend = isTrue_(row[week1Index]) || isTrue_(row[week2Index]);
+      if (!attend) return;
+      const id = normalizeStudentId_(row[idIndex]);
+      const name = normalizeName_(row[nameIndex]);
+      if (id) result.byId[id] = true;
+      if (name) result.byName[name] = true;
+    });
+  } catch (error) {
+    return result;
+  }
+  return result;
 }
 
 function homeMessages_() {
@@ -714,6 +785,10 @@ function clean_(value) {
   return String(value || '').trim();
 }
 
+function normalizeName_(value) {
+  return clean_(value).replace(/\s+/g, '');
+}
+
 function normalizeKey_(value) {
   const key = clean_(value);
   return /^\d{1,3}$/.test(key) ? (`000${key}`).slice(-4) : key;
@@ -725,6 +800,47 @@ function normalizeStudentId_(value) {
 
 function normalizeStatus_(value) {
   return value === 'attend' ? 'attend' : 'absent';
+}
+
+function isTrue_(value) {
+  const text = String(value || '').trim().toLowerCase();
+  return text === 'true' || text === 'yes' || text === '1' || text === '是' || text === '參加';
+}
+
+function parseCsv_(csv) {
+  const rows = [];
+  let row = [];
+  let cell = '';
+  let inQuotes = false;
+  const text = String(csv || '').replace(/^\uFEFF/, '');
+
+  for (let i = 0; i < text.length; i += 1) {
+    const char = text[i];
+    const next = text[i + 1];
+    if (char === '"') {
+      if (inQuotes && next === '"') {
+        cell += '"';
+        i += 1;
+      } else {
+        inQuotes = !inQuotes;
+      }
+    } else if (char === ',' && !inQuotes) {
+      row.push(cell);
+      cell = '';
+    } else if ((char === '\n' || char === '\r') && !inQuotes) {
+      if (char === '\r' && next === '\n') i += 1;
+      row.push(cell);
+      if (row.some((value) => value !== '')) rows.push(row);
+      row = [];
+      cell = '';
+    } else {
+      cell += char;
+    }
+  }
+
+  row.push(cell);
+  if (row.some((value) => value !== '')) rows.push(row);
+  return rows;
 }
 
 function sessionKeyFromDate_(dateText) {
