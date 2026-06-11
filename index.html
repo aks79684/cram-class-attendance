@@ -1298,6 +1298,7 @@
             ${categorySummaryHtml(categories.mock_only, 'border-amber-200 bg-amber-50 text-amber-950')}
             ${categorySummaryHtml(categories.both, 'border-emerald-200 bg-emerald-50 text-emerald-950')}
           </div>
+          ${categories.mock_intent_error ? `<div class="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-bold text-rose-700">${escapeHtml(categories.mock_intent_error)}</div>` : ''}
         </div>
       `;
       $('exportCategoryExcel').addEventListener('click', exportAttendanceCategoryExcel);

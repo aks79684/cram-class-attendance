@@ -365,20 +365,26 @@ function attendanceCategories_(students, sessions, attendance) {
   Object.keys(categories).forEach((key) => {
     categories[key].count = categories[key].students.length;
   });
+  categories.mock_intent_error = oldIntent.error || '';
   return categories;
 }
 
 function mockIntentByStudent_() {
-  const result = { byId: {}, byName: {}, records: [] };
+  const result = { byId: {}, byName: {}, records: [], error: '' };
   try {
-    const csv = UrlFetchApp.fetch(MOCK_INTENT_CSV_URL, { muteHttpExceptions: true }).getContentText('UTF-8');
+    const response = UrlFetchApp.fetch(MOCK_INTENT_CSV_URL, { muteHttpExceptions: true });
+    if (response.getResponseCode() >= 400) {
+      result.error = `舊模擬考表單讀取失敗：HTTP ${response.getResponseCode()}`;
+      return result;
+    }
+    const csv = response.getContentText('UTF-8');
     const rows = parseCsv_(csv);
     if (rows.length < 2) return result;
     const headers = rows[0].map((header) => clean_(header));
-    const nameIndex = headers.indexOf('姓名');
-    const idIndex = headers.findIndex((header) => header.indexOf('學號') !== -1);
-    const week1Index = headers.indexOf('第一週模擬考');
-    const week2Index = headers.indexOf('第二週模擬考');
+    const nameIndex = indexOrFallback_(headers.indexOf('姓名'), 2);
+    const idIndex = indexOrFallback_(headers.findIndex((header) => header.indexOf('學號') !== -1), 3);
+    const week1Index = indexOrFallback_(headers.indexOf('第一週模擬考'), 7);
+    const week2Index = indexOrFallback_(headers.indexOf('第二週模擬考'), 8);
 
     rows.slice(1).forEach((row) => {
       const attend = isTrue_(row[week1Index]) || isTrue_(row[week2Index]);
@@ -397,6 +403,7 @@ function mockIntentByStudent_() {
       result.records.push(record);
     });
   } catch (error) {
+    result.error = `舊模擬考表單讀取失敗：${String(error.message || error)}`;
     return result;
   }
   return result;
@@ -836,6 +843,10 @@ function normalizeStatus_(value) {
 function isTrue_(value) {
   const text = String(value || '').trim().toLowerCase();
   return text === 'true' || text === 'yes' || text === '1' || text === '是' || text === '參加';
+}
+
+function indexOrFallback_(index, fallback) {
+  return index >= 0 ? index : fallback;
 }
 
 function parseCsv_(csv) {
