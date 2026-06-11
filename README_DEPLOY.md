@@ -27,7 +27,8 @@
 3. 在 Apps Script 左側點 `專案設定`，開啟 `在編輯器中顯示 appsscript.json 資訊清單檔案`。
 4. 打開左側的 `appsscript.json`，貼上 `apps-script/appsscript.json` 的全部內容。
 5. 儲存專案。
-6. 在 Apps Script 編輯器中執行一次 `ensureSetup`，授權它存取目前試算表與讀取舊模擬考表單 CSV。
+6. 在 Apps Script 編輯器中執行一次 `ensureSetup`，授權它存取目前試算表。
+7. `ensureSetup` 會自動建立 `MockIntent` 分頁，並填入舊模擬考表單的初始名單；之後若舊名單要調整，直接改這個分頁。
 
 第一次建立後的預設管理密碼在 `apps-script/Code.gs` 內：
 
@@ -102,7 +103,7 @@ const APPS_SCRIPT_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
 
 1. 確認 Apps Script 是從 Google Sheet 內的 `擴充功能` -> `Apps Script` 建立，不是獨立專案。
 2. 在 Apps Script 左側點 `專案設定`，開啟 `在編輯器中顯示 appsscript.json 資訊清單檔案`。
-3. 新增或打開 `appsscript.json`，貼上本專案 `apps-script/appsscript.json` 的內容，確認包含 `https://www.googleapis.com/auth/script.external_request`。
+3. 新增或打開 `appsscript.json`，貼上本專案 `apps-script/appsscript.json` 的內容。
 4. 儲存後重新整理 Apps Script 編輯器。
 5. 再執行一次 `ensureSetup` 授權。
 6. 若仍被封鎖，代表目前 Google 帳戶或學校網域禁止未驗證 Apps Script 授權；請改用一般個人 Google 帳戶建立試算表，或請網域管理員允許這個 Apps Script 專案。

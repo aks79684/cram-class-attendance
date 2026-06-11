@@ -4,6 +4,7 @@ const SHEETS = {
   ATTENDANCE: 'Attendance',
   MESSAGES: 'Messages',
   ANNOUNCEMENTS: 'Announcements',
+  MOCK_INTENTS: 'MockIntent',
 };
 
 const ADMIN_PASSWORD = 'admin115';
@@ -15,7 +16,39 @@ const SESSION_FIELDS = ['date', 'day', 'time', 'subject', 'teacher', 'type', 'cl
 const INFO_ONLY_SESSION_KEYS = ['0708', '0725', '0726', '0727', '0728'];
 const HIGHLIGHT_ONLY_SESSION_KEYS = ['0726', '0727'];
 const MOCK_EXAM_SESSION_KEYS = ['0711', '0712', '0718', '0719'];
-const MOCK_INTENT_CSV_URL = 'https://docs.google.com/spreadsheets/d/1ojWJENirdR5I4W4bga36sIOfrbyRa7cpBmzZdf9yVA0/export?format=csv';
+const DEFAULT_MOCK_INTENTS = [
+  ['\u6797\u7469\u6a3a', 'H1309002', true, true],
+  ['\u9673\u6881\u60df\u5a77', 'H1309009', true, true],
+  ['\u5f35\u7407\u60e0', 'H1309010', true, true],
+  ['\u5289\u7fd4\u5b87', 'H1309011', true, true],
+  ['\u5f35\u535a\u6587', 'H1309012', true, true],
+  ['\u67ef\u67cf\u7fbd', 'H1309013', true, true],
+  ['\u9ec3\u90c1\u7407', 'H1309015', true, true],
+  ['\u8a31\u80b2\u5091', 'H1309026', true, true],
+  ['\u4ec7\u8587\u6674', 'H1309027', true, true],
+  [' \u6f58\u4fe1\u5b8f', 'H1309031', true, true],
+  ['\u694a\u671d\u4efb', 'H1309033', true, false],
+  ['\u984f\u59a4\u5982', 'H1309035', true, true],
+  ['\u5f35\u535a\u502b', 'H1309036', true, true],
+  ['\u5433\u5efa\u5ef7', 'H1309037', true, true],
+  ['\u53e4\u73a5\u85b0', 'H1309039', true, true],
+  ['\u937e\u6770\u885b', 'H1309048', true, true],
+  ['\u9673\u5104\u5146', 'H1309051', true, true],
+  ['\u8463\u666f\u83ef', 'H1309052', true, true],
+  ['\u838a\u7693\u5d34', 'H1309053', true, true],
+  ['\u6731\u4fca\u8afa', 'H1309055', true, true],
+  ['\u738b\u51a0\u5141', 'H1309057', true, true],
+  ['\u9ec3\u8a69\u82b8', 'H1309058', true, true],
+  ['\u694a\u627f\u7ff0', 'H1309059', true, true],
+  ['\u6797\u5b5f\u79c0', 'H1309067', true, true],
+  ['\u6797\u6c76\u6b23', 'H1309071', true, true],
+  ['\u842c\u4e43\u7db8', 'H1309075', true, true],
+  ['\u9ec3\u6e24\u7d18', 'H1309076', true, true],
+  ['\u7c21\u5609\u8c6a', 'H1309085', true, true],
+  ['\u838a\u5a55\u4f36', 'H1309091', true, true],
+  ['\u5ed6\u8056\u4e30', 'H1309097', true, true],
+  ['\u674e\u4fca\u5112', 'H1309100', true, true],
+];
 const DEFAULT_HOME_MESSAGES = [
   ['1', '每天前進一點點', '國考不是一天衝完，是每天多記住一題、多練熟一步。', true, 1],
   ['2', '記得回覆出席', '老師不是要抓人，是要先幫大家準備位置、器材和冷氣。', true, 2],
@@ -123,6 +156,7 @@ function ensureSetup() {
   const sessions = getOrCreateSheet_(ss, SHEETS.SESSIONS, ['session_key', 'date', 'day', 'time', 'subject', 'teacher', 'type', 'classroom', 'notes', 'visible']);
   const messages = getOrCreateSheet_(ss, SHEETS.MESSAGES, ['message_id', 'title', 'body', 'visible', 'sort_order']);
   const announcements = getOrCreateSheet_(ss, SHEETS.ANNOUNCEMENTS, ['announcement_id', 'body', 'visible', 'sort_order']);
+  const mockIntents = getOrCreateSheet_(ss, SHEETS.MOCK_INTENTS, ['name', 'student_id', 'week1', 'week2']);
   getOrCreateSheet_(ss, SHEETS.ATTENDANCE, ['student_id', 'session_key', 'status', 'updated_at']);
 
   if (students.getLastRow() === 1 && DEFAULT_STUDENTS.length > 0) {
@@ -142,6 +176,10 @@ function ensureSetup() {
 
   if (announcements.getLastRow() === 1) {
     announcements.getRange(2, 1, DEFAULT_ANNOUNCEMENTS.length, 4).setValues(DEFAULT_ANNOUNCEMENTS);
+  }
+
+  if (mockIntents.getLastRow() === 1) {
+    mockIntents.getRange(2, 1, DEFAULT_MOCK_INTENTS.length, 4).setValues(DEFAULT_MOCK_INTENTS);
   }
 
 }
@@ -372,31 +410,18 @@ function attendanceCategories_(students, sessions, attendance) {
 function mockIntentByStudent_() {
   const result = { byId: {}, byName: {}, records: [], error: '' };
   try {
-    const response = UrlFetchApp.fetch(MOCK_INTENT_CSV_URL, { muteHttpExceptions: true });
-    if (response.getResponseCode() >= 400) {
-      result.error = `舊模擬考表單讀取失敗：HTTP ${response.getResponseCode()}`;
-      return result;
-    }
-    const csv = response.getContentText('UTF-8');
-    const rows = parseCsv_(csv);
-    if (rows.length < 2) return result;
-    const headers = rows[0].map((header) => clean_(header));
-    const nameIndex = indexOrFallback_(headers.indexOf('姓名'), 2);
-    const idIndex = indexOrFallback_(headers.findIndex((header) => header.indexOf('學號') !== -1), 3);
-    const week1Index = indexOrFallback_(headers.indexOf('第一週模擬考'), 7);
-    const week2Index = indexOrFallback_(headers.indexOf('第二週模擬考'), 8);
-
-    rows.slice(1).forEach((row) => {
-      const attend = isTrue_(row[week1Index]) || isTrue_(row[week2Index]);
+    const rows = sheetObjects_(sheet_(SHEETS.MOCK_INTENTS));
+    rows.forEach((row) => {
+      const attend = isTrue_(row.week1) || isTrue_(row.week2);
       if (!attend) return;
-      const id = normalizeStudentId_(row[idIndex]);
-      const rawName = clean_(row[nameIndex]);
+      const id = normalizeStudentId_(row.student_id);
+      const rawName = clean_(row.name);
       const name = normalizeName_(rawName);
       const record = {
         student_id: id,
         name: rawName,
-        week1: isTrue_(row[week1Index]),
-        week2: isTrue_(row[week2Index]),
+        week1: isTrue_(row.week1),
+        week2: isTrue_(row.week2),
       };
       if (id) result.byId[id] = record;
       if (name) result.byName[name] = record;
@@ -843,46 +868,6 @@ function normalizeStatus_(value) {
 function isTrue_(value) {
   const text = String(value || '').trim().toLowerCase();
   return text === 'true' || text === 'yes' || text === '1' || text === '是' || text === '參加';
-}
-
-function indexOrFallback_(index, fallback) {
-  return index >= 0 ? index : fallback;
-}
-
-function parseCsv_(csv) {
-  const rows = [];
-  let row = [];
-  let cell = '';
-  let inQuotes = false;
-  const text = String(csv || '').replace(/^\uFEFF/, '');
-
-  for (let i = 0; i < text.length; i += 1) {
-    const char = text[i];
-    const next = text[i + 1];
-    if (char === '"') {
-      if (inQuotes && next === '"') {
-        cell += '"';
-        i += 1;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (char === ',' && !inQuotes) {
-      row.push(cell);
-      cell = '';
-    } else if ((char === '\n' || char === '\r') && !inQuotes) {
-      if (char === '\r' && next === '\n') i += 1;
-      row.push(cell);
-      if (row.some((value) => value !== '')) rows.push(row);
-      row = [];
-      cell = '';
-    } else {
-      cell += char;
-    }
-  }
-
-  row.push(cell);
-  if (row.some((value) => value !== '')) rows.push(row);
-  return rows;
 }
 
 function sessionKeyFromDate_(dateText) {
