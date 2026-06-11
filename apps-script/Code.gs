@@ -387,7 +387,7 @@ function attendanceCategories_(students, sessions, attendance) {
     const matched = students.some((student) => {
       const studentId = normalizeStudentId_(student.student_id);
       const studentName = normalizeName_(student.name);
-      return (id && studentId === id) || (!id && nameKey && studentName === nameKey);
+      return (id && studentId === id) || (nameKey && studentName === nameKey);
     });
     if (matched) return;
     addedUnregistered[recordKey] = true;
