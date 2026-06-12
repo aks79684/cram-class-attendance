@@ -227,7 +227,8 @@
       adminMonth: 7,
       selectedAdminDate: '',
       homeMessages: DEFAULT_HOME_MESSAGES,
-      announcements: DEFAULT_ANNOUNCEMENTS,
+      announcements: [],
+      announcementsLoaded: false,
       activeHomeMessage: 0,
       homeMessageTimer: null,
       mobileBackGuardReady: false,
@@ -337,10 +338,13 @@
         }
         if (response && Array.isArray(response.announcements) && response.announcements.length) {
           state.announcements = response.announcements;
-          renderAnnouncementBoard();
         }
+        state.announcementsLoaded = true;
+        renderAnnouncementBoard();
       } catch (error) {
-        // 首頁輪播不是登入流程的必要條件，讀取失敗時保留預設文案。
+        state.announcementsLoaded = true;
+        renderAnnouncementBoard();
+        // Home messages are not required for login; keep the page usable if loading fails.
       }
     }
 
@@ -403,24 +407,37 @@
     function renderAnnouncementBoard() {
       const board = $('announcementBoard');
       if (!board) return;
-      const announcements = state.announcements.length ? state.announcements : DEFAULT_ANNOUNCEMENTS;
+      if (isConfigured() && !state.announcementsLoaded) {
+        board.innerHTML = `
+          <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h3 class="text-base font-bold"><i class="fa-solid fa-bullhorn mr-2 text-amber-500"></i>&#37325;&#35201;&#20107;&#38917;</h3>
+              <p class="mt-1 text-sm text-slate-500">&#20844;&#21578;&#21516;&#27493;&#20013;</p>
+            </div>
+          </div>
+          <div class="mt-4 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-950">
+            &#27491;&#22312;&#35712;&#21462;&#26368;&#26032;&#20844;&#21578;&#65292;&#35531;&#31245;&#20505;&#12290;
+          </div>
+        `;
+        return;
+      }
+      const announcements = state.announcements.length ? state.announcements : (isConfigured() ? [] : DEFAULT_ANNOUNCEMENTS);
       board.innerHTML = `
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h3 class="text-base font-bold"><i class="fa-solid fa-bullhorn mr-2 text-amber-500"></i>重要事項</h3>
-            <p class="mt-1 text-sm text-slate-500">課程與系統使用提醒</p>
+            <h3 class="text-base font-bold"><i class="fa-solid fa-bullhorn mr-2 text-amber-500"></i>&#37325;&#35201;&#20107;&#38917;</h3>
+            <p class="mt-1 text-sm text-slate-500">&#35506;&#31243;&#33287;&#31995;&#32113;&#20351;&#29992;&#25552;&#37266;</p>
           </div>
         </div>
         <ul class="mt-4 space-y-2">
-          ${announcements.map((announcement) => `
+          ${announcements.length ? announcements.map((announcement) => `
             <li class="whitespace-pre-line rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-950">
               ${escapeHtml(announcement.body || '')}
             </li>
-          `).join('')}
+          `).join('') : '<li class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-950">&#30446;&#21069;&#27794;&#26377;&#20844;&#21578;&#12290;</li>'}
         </ul>
       `;
     }
-
 
     function isMobileMode() {
       return window.matchMedia && window.matchMedia('(max-width: 640px)').matches;
