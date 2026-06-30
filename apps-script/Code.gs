@@ -3,6 +3,7 @@ const SHEETS = {
   SESSIONS: 'Sessions',
   ATTENDANCE: 'Attendance',
   MESSAGES: 'Messages',
+  HOME_CARDS: 'HomeCards',
   ANNOUNCEMENTS: 'Announcements',
   MOCK_INTENTS: 'MockIntent',
 };
@@ -53,6 +54,9 @@ const DEFAULT_HOME_MESSAGES = [
   ['1', '每天前進一點點', '國考不是一天衝完，是每天多記住一題、多練熟一步。', true, 1],
   ['2', '記得回覆出席', '老師不是要抓人，是要先幫大家準備位置、器材和冷氣。', true, 2],
   ['3', '把錯題當線索', '錯題不是失敗紀錄，是提醒你下一次會更穩的路標。', true, 3],
+];
+const DEFAULT_HOME_IMAGE_CARD = [
+  ['main', '', '', '', '', true],
 ];
 const DEFAULT_ANNOUNCEMENTS = [
   ['1', '請同學完成出席填寫，方便老師統計人數與準備教室。', true, 1],
@@ -114,7 +118,7 @@ function routeAction(params) {
     case 'listStudentSessions':
       return listStudentSessions(params.student_id, params.password);
     case 'getHomeMessages':
-      return { messages: homeMessages_(), announcements: announcements_() };
+      return { messages: homeMessages_(), homeImageCard: homeImageCard_(), announcements: announcements_() };
     case 'updateAttendance':
       return updateAttendance(params.student_id, params.password, params.session_key, params.status);
     case 'updateAllAttendance':
@@ -142,6 +146,9 @@ function routeAction(params) {
     case 'adminUpdateHomeMessages':
       verifyAdmin(params.password);
       return adminUpdateHomeMessages(params.messages);
+    case 'adminUpdateHomeImageCard':
+      verifyAdmin(params.password);
+      return adminUpdateHomeImageCard(params.card);
     case 'adminUpdateAnnouncements':
       verifyAdmin(params.password);
       return adminUpdateAnnouncements(params.announcements);
@@ -155,6 +162,7 @@ function ensureSetup() {
   const students = getOrCreateSheet_(ss, SHEETS.STUDENTS, ['student_id', 'name', 'password_hash', 'year', 'type', 'created_at', 'status']);
   const sessions = getOrCreateSheet_(ss, SHEETS.SESSIONS, ['session_key', 'date', 'day', 'time', 'subject', 'teacher', 'type', 'classroom', 'notes', 'visible']);
   const messages = getOrCreateSheet_(ss, SHEETS.MESSAGES, ['message_id', 'title', 'body', 'visible', 'sort_order']);
+  const homeCards = getOrCreateSheet_(ss, SHEETS.HOME_CARDS, ['card_id', 'title', 'body', 'image_url', 'link_url', 'visible']);
   const announcements = getOrCreateSheet_(ss, SHEETS.ANNOUNCEMENTS, ['announcement_id', 'body', 'visible', 'sort_order']);
   const mockIntents = getOrCreateSheet_(ss, SHEETS.MOCK_INTENTS, ['name', 'student_id', 'week1', 'week2']);
   getOrCreateSheet_(ss, SHEETS.ATTENDANCE, ['student_id', 'session_key', 'status', 'updated_at']);
@@ -172,6 +180,10 @@ function ensureSetup() {
 
   if (messages.getLastRow() === 1) {
     messages.getRange(2, 1, DEFAULT_HOME_MESSAGES.length, 5).setValues(DEFAULT_HOME_MESSAGES);
+  }
+
+  if (homeCards.getLastRow() === 1) {
+    homeCards.getRange(2, 1, DEFAULT_HOME_IMAGE_CARD.length, 6).setValues(DEFAULT_HOME_IMAGE_CARD);
   }
 
   if (announcements.getLastRow() === 1) {
@@ -337,6 +349,7 @@ function adminSummary() {
     sessions: sessions.map((session) => summarizeSession_(session, students, attendance)),
     attendanceCategories: attendanceCategories_(students, sessions, attendance),
     messages: homeMessages_(),
+    homeImageCard: homeImageCard_(),
     announcements: announcements_(),
   };
 }
@@ -475,6 +488,38 @@ function adminUpdateHomeMessages(messagesJson) {
     messagesSheet.getRange(2, 1, messagesSheet.getLastRow() - 1, 5).clearContent();
   }
   messagesSheet.getRange(2, 1, rows.length, 5).setValues(rows);
+  return adminSummary();
+}
+
+function homeImageCard_() {
+  const cards = sheetObjects_(sheet_(SHEETS.HOME_CARDS));
+  const card = cards.find((item) => clean_(item.card_id) === 'main') || cards[0] || {};
+  return {
+    card_id: clean_(card.card_id || 'main'),
+    title: clean_(card.title),
+    body: clean_(card.body),
+    image_url: clean_(card.image_url),
+    link_url: clean_(card.link_url),
+    visible: card.visible === true || String(card.visible).toLowerCase() === 'true',
+  };
+}
+
+function adminUpdateHomeImageCard(cardJson) {
+  const card = JSON.parse(String(cardJson || '{}'));
+  const row = [
+    'main',
+    clean_(card.title),
+    clean_(card.body),
+    clean_(card.image_url),
+    clean_(card.link_url),
+    card.visible === true || String(card.visible).toLowerCase() === 'true',
+  ];
+
+  const sheet = sheet_(SHEETS.HOME_CARDS);
+  if (sheet.getLastRow() > 1) {
+    sheet.getRange(2, 1, sheet.getLastRow() - 1, 6).clearContent();
+  }
+  sheet.getRange(2, 1, 1, 6).setValues([row]);
   return adminSummary();
 }
 

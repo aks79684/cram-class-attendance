@@ -52,9 +52,11 @@
       尚未設定 Apps Script 網址。請部署 <code>apps-script/Code.gs</code> 後，把 Web App URL 填入 <code>APPS_SCRIPT_URL</code>。
     </div>
 
-    <section class="mb-6 grid gap-4 md:grid-cols-[1fr_280px]">
+    <section class="mb-6 grid gap-4 md:grid-cols-[1fr_320px]">
       <div id="homeMessageCarousel" class="rounded-lg bg-white p-5 shadow-sm"></div>
-      <div class="rounded-lg bg-slate-900 p-5 text-white shadow-sm">
+      <div class="grid gap-4">
+        <div id="homeImageCard" class="overflow-hidden rounded-lg bg-white shadow-sm"></div>
+        <div class="rounded-lg bg-slate-900 p-5 text-white shadow-sm">
         <p class="text-xs font-bold text-slate-400">今日</p>
         <div id="todayText" class="mt-1 text-2xl font-bold"></div>
         <div class="mt-4 rounded-lg border border-slate-700 bg-slate-800/70 p-3">
@@ -62,6 +64,7 @@
           <div id="examCountdown" class="mt-1 text-2xl font-bold text-amber-300"></div>
           <p class="mt-1 text-xs text-slate-400">7/25 國考</p>
         </div>
+      </div>
       </div>
     </section>
 
@@ -173,6 +176,7 @@
         <div id="attendanceCategoryPanel" class="rounded-lg bg-white p-5 shadow-sm"></div>
         <div id="adminCalendar" class="rounded-lg bg-white p-5 shadow-sm"></div>
         <div id="passwordPanel" class="rounded-lg bg-white p-5 shadow-sm"></div>
+        <div id="homeImagePanel" class="rounded-lg bg-white p-5 shadow-sm"></div>
         <div id="homeMessagePanel" class="rounded-lg bg-white p-5 shadow-sm"></div>
         <div id="announcementPanel" class="rounded-lg bg-white p-5 shadow-sm"></div>
         <div id="adminSummary" class="space-y-4"></div>
@@ -201,6 +205,13 @@
       { message_id: '2', title: '記得回覆出席', body: '老師不是要抓人，是要先幫大家準備位置、器材和冷氣。' },
       { message_id: '3', title: '把錯題當線索', body: '錯題不是失敗紀錄，是提醒你下一次會更穩的路標。' },
     ];
+    const DEFAULT_HOME_IMAGE_CARD = {
+      title: '',
+      body: '',
+      image_url: '',
+      link_url: '',
+      visible: true,
+    };
     const DEFAULT_ANNOUNCEMENTS = [
       { announcement_id: '1', body: '請同學完成出席填寫，方便老師統計人數與準備教室。' },
       { announcement_id: '2', body: '課表若有異動，會以老師公告及系統內容為準。' },
@@ -228,6 +239,7 @@
       selectedAdminDate: '',
       homeMessages: DEFAULT_HOME_MESSAGES,
       announcements: [],
+      homeImageCard: DEFAULT_HOME_IMAGE_CARD,
       announcementsLoaded: false,
       activeHomeMessage: 0,
       homeMessageTimer: null,
@@ -253,6 +265,7 @@
       bindEvents();
       initMobileBackGuard();
       renderHomeMessages();
+      renderHomeImageCard();
       renderAnnouncementBoard();
       loadHomeMessages();
       renderTabs();
@@ -339,6 +352,10 @@
         if (response && Array.isArray(response.announcements) && response.announcements.length) {
           state.announcements = response.announcements;
         }
+        if (response && response.homeImageCard) {
+          state.homeImageCard = normalizeHomeImageCard(response.homeImageCard);
+          renderHomeImageCard();
+        }
         state.announcementsLoaded = true;
         renderAnnouncementBoard();
       } catch (error) {
@@ -387,6 +404,29 @@
         state.activeHomeMessage = (state.activeHomeMessage + 1) % messages.length;
         renderHomeMessages();
       }, 5000);
+    }
+
+    function normalizeHomeImageCard(card) {
+      return Object.assign({}, DEFAULT_HOME_IMAGE_CARD, card || {});
+    }
+
+    function renderHomeImageCard() {
+      const container = $('homeImageCard');
+      if (!container) return;
+      const card = normalizeHomeImageCard(state.homeImageCard);
+      container.classList.toggle('hidden', card.visible === false);
+      const hasImage = card.visible !== false && card.image_url;
+      const imageHtml = hasImage
+        ? `<img src="${escapeAttr(card.image_url)}" alt="${escapeAttr(card.title || '首頁圖片')}" class="h-44 w-full object-cover" loading="lazy" onerror="this.closest('[data-home-image-card]').classList.add('image-error')">`
+        : `<div class="flex h-44 w-full items-center justify-center bg-slate-100 text-slate-400"><i class="fa-regular fa-image text-4xl"></i></div>`;
+      const bodyHtml = card.title || card.body ? `
+        <div class="p-4">
+          ${card.title ? `<h3 class="text-base font-bold">${escapeHtml(card.title)}</h3>` : ''}
+          ${card.body ? `<p class="mt-1 text-sm leading-6 text-slate-600">${escapeHtml(card.body)}</p>` : ''}
+        </div>
+      ` : '';
+      const content = `<div data-home-image-card>${imageHtml}${bodyHtml}</div>`;
+      container.innerHTML = card.link_url ? `<a href="${escapeAttr(card.link_url)}" target="_blank" rel="noopener noreferrer" class="block transition hover:opacity-95">${content}</a>` : content;
     }
 
     function examCountdownText() {
@@ -1041,6 +1081,10 @@
           state.announcements = response.announcements;
           renderAnnouncementBoard();
         }
+        if (response && response.homeImageCard) {
+          state.homeImageCard = normalizeHomeImageCard(response.homeImageCard);
+          renderHomeImageCard();
+        }
         const first = response.sessions[0];
         if (first && !state.selectedAdminDate) {
           state.selectedAdminDate = normalizeSessionKey(first.session_key);
@@ -1049,6 +1093,7 @@
         renderAdminCalendar();
         renderAttendanceCategoryPanel();
         renderPasswordPanel();
+        renderHomeImagePanel();
         renderHomeMessagePanel();
         renderAnnouncementPanel();
         renderAdminSummary();
@@ -1119,6 +1164,71 @@
         showToast('學生密碼已更新。');
       } catch (error) {
         showToast(error.message, 'warning');
+      }
+    }
+
+    function renderHomeImagePanel() {
+      const card = normalizeHomeImageCard(state.adminData && state.adminData.homeImageCard ? state.adminData.homeImageCard : state.homeImageCard);
+      $('homeImagePanel').innerHTML = `
+        <div class="flex flex-col gap-4">
+          <div>
+            <h4 class="font-bold">首頁圖片卡片</h4>
+            <p class="mt-1 text-sm text-slate-500">放一張首頁圖片，可加標題、說明與點擊連結。</p>
+          </div>
+          <form id="homeImageForm" class="grid gap-3 md:grid-cols-2">
+            <div class="md:col-span-2">
+              <label class="block text-xs font-bold text-slate-500">圖片網址</label>
+              <input id="homeImageUrl" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value="${escapeAttr(card.image_url || '')}" placeholder="https://...">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-500">標題</label>
+              <input id="homeImageTitle" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value="${escapeAttr(card.title || '')}">
+            </div>
+            <div>
+              <label class="block text-xs font-bold text-slate-500">點擊連結</label>
+              <input id="homeImageLink" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value="${escapeAttr(card.link_url || '')}" placeholder="可留空">
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-xs font-bold text-slate-500">說明</label>
+              <textarea id="homeImageBody" class="mt-1 min-h-[72px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm">${escapeHtml(card.body || '')}</textarea>
+            </div>
+            <div class="flex items-center gap-3 md:col-span-2">
+              <label class="flex items-center gap-2 text-sm font-bold text-slate-600"><input id="homeImageVisible" type="checkbox" class="h-4 w-4" ${card.visible === false ? '' : 'checked'}>顯示圖片卡片</label>
+              <button class="rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-500">
+                <i class="fa-solid fa-floppy-disk mr-1"></i>儲存圖片卡片
+              </button>
+            </div>
+          </form>
+        </div>
+      `;
+      $('homeImageForm').addEventListener('submit', saveHomeImageCard);
+    }
+
+    async function saveHomeImageCard(event) {
+      event.preventDefault();
+      const card = {
+        title: $('homeImageTitle').value.trim(),
+        body: $('homeImageBody').value.trim(),
+        image_url: $('homeImageUrl').value.trim(),
+        link_url: $('homeImageLink').value.trim(),
+        visible: $('homeImageVisible').checked,
+      };
+
+      setLoading($('homeImageForm'), true);
+      try {
+        const response = await api('adminUpdateHomeImageCard', {
+          password: state.adminPassword,
+          card: JSON.stringify(card),
+        });
+        state.adminData = response;
+        state.homeImageCard = normalizeHomeImageCard(response.homeImageCard || card);
+        renderHomeImageCard();
+        renderHomeImagePanel();
+        showToast('首頁圖片卡片已更新。');
+      } catch (error) {
+        showToast(error.message, 'warning');
+      } finally {
+        if ($('homeImageForm')) setLoading($('homeImageForm'), false);
       }
     }
 
