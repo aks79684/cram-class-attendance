@@ -63,7 +63,7 @@
         <div class="mt-4 rounded-lg border border-slate-700 bg-slate-800/70 p-3">
           <p class="text-xs font-bold text-slate-400">國考倒數</p>
           <div id="examCountdown" class="mt-1 text-2xl font-bold text-amber-300"></div>
-          <p class="mt-1 text-xs text-slate-400">7/25 國考</p>
+          <p class="mt-1 text-xs text-slate-400">7/26 國考</p>
         </div>
       </div>
       </div>
@@ -471,7 +471,7 @@
         day: '2-digit',
       }).format(new Date());
       const today = new Date(`${todayText}T00:00:00+08:00`);
-      const exam = new Date(`${DEFAULT_YEAR}-07-25T00:00:00+08:00`);
+      const exam = new Date(`${DEFAULT_YEAR}-07-26T00:00:00+08:00`);
       const days = Math.ceil((exam - today) / 86400000);
       if (days > 0) return `${days} 天`;
       if (days === 0) return '就是今天';
