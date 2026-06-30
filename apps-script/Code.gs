@@ -107,6 +107,21 @@ function doGet(e) {
   }
 }
 
+function doPost(e) {
+  const params = e && e.parameter ? e.parameter : {};
+
+  try {
+    const result = routeAction(params);
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: true, data: result }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService
+      .createTextOutput(JSON.stringify({ ok: false, error: String(error.message || error) }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
+}
+
 function routeAction(params) {
   ensureSetup();
 

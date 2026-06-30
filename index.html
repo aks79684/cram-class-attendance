@@ -52,10 +52,10 @@
       尚未設定 Apps Script 網址。請部署 <code>apps-script/Code.gs</code> 後，把 Web App URL 填入 <code>APPS_SCRIPT_URL</code>。
     </div>
 
-    <section class="mb-6 grid gap-4 md:grid-cols-[1fr_320px]">
-      <div id="homeMessageCarousel" class="rounded-lg bg-white p-5 shadow-sm"></div>
+    <section class="mb-6 grid gap-4 md:grid-cols-[1fr_360px]">
+      <div id="homeImageCard" class="overflow-hidden rounded-lg bg-white shadow-sm"></div>
       <div class="grid gap-4">
-        <div id="homeImageCard" class="overflow-hidden rounded-lg bg-white shadow-sm"></div>
+        <div id="homeMessageCarousel" class="rounded-lg bg-white p-5 shadow-sm"></div>
         <div class="rounded-lg bg-slate-900 p-5 text-white shadow-sm">
         <p class="text-xs font-bold text-slate-400">今日</p>
         <div id="todayText" class="mt-1 text-2xl font-bold"></div>
@@ -417,8 +417,8 @@
       container.classList.toggle('hidden', card.visible === false);
       const hasImage = card.visible !== false && card.image_url;
       const imageHtml = hasImage
-        ? `<img src="${escapeAttr(card.image_url)}" alt="${escapeAttr(card.title || '首頁圖片')}" class="h-44 w-full object-cover" loading="lazy" onerror="this.closest('[data-home-image-card]').classList.add('image-error')">`
-        : `<div class="flex h-44 w-full items-center justify-center bg-slate-100 text-slate-400"><i class="fa-regular fa-image text-4xl"></i></div>`;
+        ? `<img src="${escapeAttr(card.image_url)}" alt="${escapeAttr(card.title || '首頁圖片')}" class="h-[360px] w-full object-contain bg-slate-50 sm:h-[430px]" loading="lazy" onerror="this.closest('[data-home-image-card]').classList.add('image-error')">`
+        : `<div class="flex h-[360px] w-full flex-col items-center justify-center gap-3 bg-slate-50 text-slate-400 sm:h-[430px]"><i class="fa-regular fa-image text-5xl"></i><p class="text-sm font-bold">尚未放置課表圖片</p></div>`;
       const bodyHtml = card.title || card.body ? `
         <div class="p-4">
           ${card.title ? `<h3 class="text-base font-bold">${escapeHtml(card.title)}</h3>` : ''}
@@ -426,7 +426,40 @@
         </div>
       ` : '';
       const content = `<div data-home-image-card>${imageHtml}${bodyHtml}</div>`;
-      container.innerHTML = card.link_url ? `<a href="${escapeAttr(card.link_url)}" target="_blank" rel="noopener noreferrer" class="block transition hover:opacity-95">${content}</a>` : content;
+      container.innerHTML = hasImage
+        ? `<button type="button" id="openHomeImagePreview" class="block w-full text-left transition hover:opacity-95">${content}</button>`
+        : content;
+      if (hasImage) {
+        $('openHomeImagePreview').addEventListener('click', () => openHomeImageModal(card));
+      }
+    }
+
+    function openHomeImageModal(card) {
+      const modal = $('sessionModal');
+      modal.innerHTML = `
+        <div class="flex max-h-[92vh] w-full max-w-5xl flex-col overflow-hidden rounded-lg bg-white shadow-2xl">
+          <div class="flex items-start justify-between bg-slate-950 p-4 text-white">
+            <div>
+              <p class="text-xs font-bold text-slate-400">首頁圖片</p>
+              ${card.title ? `<h4 class="mt-1 text-lg font-bold text-amber-300">${escapeHtml(card.title)}</h4>` : ''}
+            </div>
+            <button id="closeHomeImageModal" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-white hover:bg-slate-700">
+              <i class="fa-solid fa-xmark"></i>
+            </button>
+          </div>
+          <div class="overflow-y-auto bg-slate-950/95 p-3 sm:p-5">
+            <img src="${escapeAttr(card.image_url)}" alt="${escapeAttr(card.title || '首頁圖片')}" class="mx-auto max-h-[72vh] max-w-full rounded-lg object-contain">
+            ${card.body ? `<p class="mx-auto mt-4 max-w-3xl text-sm leading-6 text-slate-200">${escapeHtml(card.body)}</p>` : ''}
+            ${card.link_url ? `<div class="mt-4 text-center"><a href="${escapeAttr(card.link_url)}" target="_blank" rel="noopener noreferrer" class="inline-flex items-center rounded-lg bg-white px-4 py-2 text-sm font-bold text-slate-900 hover:bg-slate-100"><i class="fa-solid fa-arrow-up-right-from-square mr-2"></i>開啟連結</a></div>` : ''}
+          </div>
+        </div>
+      `;
+      modal.classList.remove('hidden');
+      modal.classList.add('flex');
+      $('closeHomeImageModal').addEventListener('click', closeSessionModal);
+      modal.addEventListener('click', (event) => {
+        if (event.target === modal) closeSessionModal();
+      }, { once: true });
     }
 
     function examCountdownText() {
@@ -1177,9 +1210,15 @@
           </div>
           <form id="homeImageForm" class="grid gap-3 md:grid-cols-2">
             <div class="md:col-span-2">
-              <label class="block text-xs font-bold text-slate-500">圖片網址</label>
+              <label class="block text-xs font-bold text-slate-500">從本機上傳圖片</label>
+              <input id="homeImageFile" type="file" accept="image/*" class="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm">
+              <p id="homeImageUploadHint" class="mt-1 text-xs text-slate-500">選擇圖片後會自動壓縮；不選檔則保留目前圖片。</p>
+            </div>
+            <div class="md:col-span-2">
+              <label class="block text-xs font-bold text-slate-500">圖片網址或已上傳圖片資料</label>
               <input id="homeImageUrl" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value="${escapeAttr(card.image_url || '')}" placeholder="https://...">
             </div>
+            ${card.image_url ? `<div class="md:col-span-2 overflow-hidden rounded-lg border border-slate-200 bg-slate-50"><img src="${escapeAttr(card.image_url)}" class="h-40 w-full object-contain" alt="首頁圖片預覽"></div>` : ''}
             <div>
               <label class="block text-xs font-bold text-slate-500">標題</label>
               <input id="homeImageTitle" class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" value="${escapeAttr(card.title || '')}">
@@ -1201,11 +1240,28 @@
           </form>
         </div>
       `;
+      $('homeImageFile').addEventListener('change', previewHomeImageUpload);
       $('homeImageForm').addEventListener('submit', saveHomeImageCard);
+    }
+
+    async function previewHomeImageUpload() {
+      const file = $('homeImageFile').files && $('homeImageFile').files[0];
+      if (!file) return;
+      try {
+        $('homeImageUploadHint').textContent = '圖片壓縮中，請稍候。';
+        const dataUrl = await compressImageFile(file);
+        $('homeImageUrl').value = dataUrl;
+        $('homeImageUploadHint').textContent = '圖片已準備好，按儲存後會同步到首頁。';
+      } catch (error) {
+        $('homeImageFile').value = '';
+        $('homeImageUploadHint').textContent = error.message;
+        showToast(error.message, 'warning');
+      }
     }
 
     async function saveHomeImageCard(event) {
       event.preventDefault();
+      const file = $('homeImageFile').files && $('homeImageFile').files[0];
       const card = {
         title: $('homeImageTitle').value.trim(),
         body: $('homeImageBody').value.trim(),
@@ -1216,11 +1272,15 @@
 
       setLoading($('homeImageForm'), true);
       try {
-        const response = await api('adminUpdateHomeImageCard', {
+        if (file) {
+          card.image_url = await compressImageFile(file);
+        }
+        await postToAppsScript('adminUpdateHomeImageCard', {
           password: state.adminPassword,
           card: JSON.stringify(card),
         });
-        state.adminData = response;
+        const response = await api('getHomeMessages', {}, { showOverlay: false });
+        state.adminData = Object.assign({}, state.adminData || {}, response);
         state.homeImageCard = normalizeHomeImageCard(response.homeImageCard || card);
         renderHomeImageCard();
         renderHomeImagePanel();
@@ -1230,6 +1290,91 @@
       } finally {
         if ($('homeImageForm')) setLoading($('homeImageForm'), false);
       }
+    }
+
+    function compressImageFile(file) {
+      if (!file.type.startsWith('image/')) {
+        return Promise.reject(new Error('請選擇圖片檔。'));
+      }
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('圖片讀取失敗，請換一張圖片。'));
+        reader.onload = () => {
+          const img = new Image();
+          img.onerror = () => reject(new Error('圖片格式無法讀取，請換一張圖片。'));
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            const attempts = [
+              { width: 1100, quality: 0.8 },
+              { width: 920, quality: 0.68 },
+              { width: 760, quality: 0.56 },
+              { width: 620, quality: 0.46 },
+            ];
+            for (const attempt of attempts) {
+              const scale = Math.min(1, attempt.width / img.width);
+              canvas.width = Math.max(1, Math.round(img.width * scale));
+              canvas.height = Math.max(1, Math.round(img.height * scale));
+              ctx.clearRect(0, 0, canvas.width, canvas.height);
+              ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+              const dataUrl = canvas.toDataURL('image/jpeg', attempt.quality);
+              if (dataUrl.length <= 45000) {
+                resolve(dataUrl);
+                return;
+              }
+            }
+            reject(new Error('圖片太大，請改用較小或較簡單的圖片。'));
+          };
+          img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+
+    function postToAppsScript(action, params = {}) {
+      return new Promise((resolve, reject) => {
+        showLoading();
+        const iframeName = `appsScriptPost_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+        const iframe = document.createElement('iframe');
+        iframe.name = iframeName;
+        iframe.className = 'hidden';
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = APPS_SCRIPT_URL;
+        form.target = iframeName;
+        form.className = 'hidden';
+
+        Object.entries(Object.assign({}, params, { action })).forEach(([key, value]) => {
+          const input = document.createElement('input');
+          input.type = 'hidden';
+          input.name = key;
+          input.value = value == null ? '' : String(value);
+          form.appendChild(input);
+        });
+
+        const timeout = window.setTimeout(() => {
+          cleanup();
+          reject(new Error('圖片上傳逾時，請稍後再試。'));
+        }, 25000);
+
+        iframe.onload = () => {
+          window.clearTimeout(timeout);
+          window.setTimeout(() => {
+            cleanup();
+            resolve();
+          }, 500);
+        };
+
+        function cleanup() {
+          hideLoading();
+          form.remove();
+          iframe.remove();
+        }
+
+        document.body.appendChild(iframe);
+        document.body.appendChild(form);
+        form.submit();
+      });
     }
 
     function renderHomeMessagePanel() {
