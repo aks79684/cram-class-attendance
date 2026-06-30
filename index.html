@@ -408,7 +408,13 @@
     }
 
     function normalizeHomeImageCard(card) {
-      return Object.assign({}, DEFAULT_HOME_IMAGE_CARD, card || {});
+      const normalized = Object.assign({}, DEFAULT_HOME_IMAGE_CARD, card || {});
+      if (!normalized.image_url) {
+        return Object.assign({}, DEFAULT_HOME_IMAGE_CARD, {
+          visible: normalized.visible !== false,
+        });
+      }
+      return normalized;
     }
 
     function renderHomeImageCard() {
@@ -1289,8 +1295,9 @@
         renderHomeImagePanel();
         await wait(1200);
         const response = await api('getHomeMessages', {}, { showOverlay: false });
+        const rawRemoteCard = response.homeImageCard || {};
         const remoteCard = normalizeHomeImageCard(response.homeImageCard || {});
-        if (remoteCard.image_url) {
+        if (rawRemoteCard.image_url) {
           state.adminData = Object.assign({}, state.adminData || {}, response);
           state.homeImageCard = remoteCard;
           renderHomeImageCard();
