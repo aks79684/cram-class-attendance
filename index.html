@@ -1279,17 +1279,31 @@
           password: state.adminPassword,
           card: JSON.stringify(card),
         });
-        const response = await api('getHomeMessages', {}, { showOverlay: false });
-        state.adminData = Object.assign({}, state.adminData || {}, response);
-        state.homeImageCard = normalizeHomeImageCard(response.homeImageCard || card);
+        state.homeImageCard = normalizeHomeImageCard(card);
+        state.adminData = Object.assign({}, state.adminData || {}, { homeImageCard: state.homeImageCard });
         renderHomeImageCard();
         renderHomeImagePanel();
-        showToast('首頁圖片卡片已更新。');
+        await wait(1200);
+        const response = await api('getHomeMessages', {}, { showOverlay: false });
+        const remoteCard = normalizeHomeImageCard(response.homeImageCard || {});
+        if (remoteCard.image_url) {
+          state.adminData = Object.assign({}, state.adminData || {}, response);
+          state.homeImageCard = remoteCard;
+          renderHomeImageCard();
+          renderHomeImagePanel();
+          showToast('首頁圖片卡片已更新。');
+        } else {
+          showToast('圖片已先顯示在畫面；若重新整理後消失，請重新部署 Apps Script 後再儲存一次。', 'warning');
+        }
       } catch (error) {
         showToast(error.message, 'warning');
       } finally {
         if ($('homeImageForm')) setLoading($('homeImageForm'), false);
       }
+    }
+
+    function wait(ms) {
+      return new Promise((resolve) => window.setTimeout(resolve, ms));
     }
 
     function compressImageFile(file) {
@@ -1357,7 +1371,9 @@
           reject(new Error('圖片上傳逾時，請稍後再試。'));
         }, 25000);
 
+        let submittedAt = 0;
         iframe.onload = () => {
+          if (submittedAt && Date.now() - submittedAt < 300) return;
           window.clearTimeout(timeout);
           window.setTimeout(() => {
             cleanup();
@@ -1373,6 +1389,7 @@
 
         document.body.appendChild(iframe);
         document.body.appendChild(form);
+        submittedAt = Date.now();
         form.submit();
       });
     }
