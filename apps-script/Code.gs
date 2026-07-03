@@ -56,7 +56,7 @@ const DEFAULT_HOME_MESSAGES = [
   ['3', '把錯題當線索', '錯題不是失敗紀錄，是提醒你下一次會更穩的路標。', true, 3],
 ];
 const DEFAULT_HOME_IMAGE_CARD = [
-  ['main', '課表', '點選圖片可放大查看。', 'assets/schedule-web.webp', '', true],
+  ['main', '課表', '點選圖片可放大查看。', 'assets/schedule-web-20260703.webp', '', true],
 ];
 const DEFAULT_ANNOUNCEMENTS = [
   ['1', '請同學完成出席填寫，方便老師統計人數與準備教室。', true, 1],

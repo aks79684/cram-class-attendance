@@ -7,7 +7,7 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="image" href="assets/schedule-web.webp" type="image/webp" fetchpriority="high">
+  <link rel="preload" as="image" href="assets/schedule-web-20260703.webp" type="image/webp" fetchpriority="high">
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
   <style>
@@ -209,7 +209,7 @@
     const DEFAULT_HOME_IMAGE_CARD = {
       title: '課表',
       body: '點選圖片可放大查看。',
-      image_url: 'assets/schedule-web.webp',
+      image_url: 'assets/schedule-web-20260703.webp',
       link_url: '',
       visible: true,
     };
@@ -409,6 +409,9 @@
 
     function normalizeHomeImageCard(card) {
       const normalized = Object.assign({}, DEFAULT_HOME_IMAGE_CARD, card || {});
+      if (normalized.image_url === 'assets/schedule-web.webp') {
+        normalized.image_url = DEFAULT_HOME_IMAGE_CARD.image_url;
+      }
       if (!normalized.image_url) {
         return Object.assign({}, DEFAULT_HOME_IMAGE_CARD, {
           visible: normalized.visible !== false,
