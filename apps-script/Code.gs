@@ -178,7 +178,8 @@ function ensureSetup() {
   const sessions = getOrCreateSheet_(ss, SHEETS.SESSIONS, ['session_key', 'date', 'day', 'time', 'subject', 'teacher', 'type', 'classroom', 'notes', 'visible']);
   const messages = getOrCreateSheet_(ss, SHEETS.MESSAGES, ['message_id', 'title', 'body', 'visible', 'sort_order']);
   const homeCards = getOrCreateSheet_(ss, SHEETS.HOME_CARDS, ['card_id', 'title', 'body', 'image_url', 'link_url', 'visible']);
-  const announcements = getOrCreateSheet_(ss, SHEETS.ANNOUNCEMENTS, ['announcement_id', 'body', 'visible', 'sort_order']);
+  const announcements = getOrCreateSheet_(ss, SHEETS.ANNOUNCEMENTS, ['announcement_id', 'body', 'visible', 'sort_order', 'created_at']);
+  ensureSheetHeaders_(announcements, ['announcement_id', 'body', 'visible', 'sort_order', 'created_at']);
   const mockIntents = getOrCreateSheet_(ss, SHEETS.MOCK_INTENTS, ['name', 'student_id', 'week1', 'week2']);
   getOrCreateSheet_(ss, SHEETS.ATTENDANCE, ['student_id', 'session_key', 'status', 'updated_at']);
 
@@ -202,7 +203,7 @@ function ensureSetup() {
   }
 
   if (announcements.getLastRow() === 1) {
-    announcements.getRange(2, 1, DEFAULT_ANNOUNCEMENTS.length, 4).setValues(DEFAULT_ANNOUNCEMENTS);
+    announcements.getRange(2, 1, DEFAULT_ANNOUNCEMENTS.length, 5).setValues(DEFAULT_ANNOUNCEMENTS.map((row) => row.concat([''])));
   }
 
   if (mockIntents.getLastRow() === 1) {
@@ -541,12 +542,20 @@ function adminUpdateHomeImageCard(cardJson) {
 function announcements_() {
   return sheetObjects_(sheet_(SHEETS.ANNOUNCEMENTS))
     .filter((announcement) => announcement.visible === true || String(announcement.visible).toLowerCase() === 'true')
-    .sort((a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0))
+    .sort((a, b) => {
+      const aCreated = clean_(a.created_at);
+      const bCreated = clean_(b.created_at);
+      if (aCreated && bCreated) return bCreated.localeCompare(aCreated);
+      if (aCreated) return -1;
+      if (bCreated) return 1;
+      return Number(a.sort_order || 0) - Number(b.sort_order || 0);
+    })
     .map((announcement) => ({
       announcement_id: clean_(announcement.announcement_id),
       body: clean_(announcement.body),
       visible: true,
       sort_order: Number(announcement.sort_order || 0),
+      created_at: clean_(announcement.created_at),
     }))
     .filter((announcement) => announcement.body);
 }
@@ -557,16 +566,34 @@ function adminUpdateAnnouncements(announcementsJson) {
     throw new Error('公告格式錯誤。');
   }
 
+  const existingById = {};
+  const existingByBody = {};
+  sheetObjects_(sheet_(SHEETS.ANNOUNCEMENTS)).forEach((announcement) => {
+    const createdAt = clean_(announcement.created_at);
+    if (!createdAt) return;
+    const id = clean_(announcement.announcement_id);
+    const body = clean_(announcement.body);
+    if (id) existingById[id] = createdAt;
+    if (body) existingByBody[body] = createdAt;
+  });
+
   const rows = announcements
     .map((announcement, index) => ({
       announcement_id: clean_(announcement.announcement_id || String(index + 1)),
       body: clean_(announcement.body),
       visible: announcement.visible === true || String(announcement.visible).toLowerCase() === 'true',
       sort_order: Number(announcement.sort_order || index + 1),
+      created_at: clean_(announcement.created_at),
     }))
     .filter((announcement) => announcement.body)
     .slice(0, 10)
-    .map((announcement, index) => [announcement.announcement_id || String(index + 1), announcement.body, announcement.visible, index + 1]);
+    .map((announcement, index) => [
+      announcement.announcement_id || String(index + 1),
+      announcement.body,
+      announcement.visible,
+      index + 1,
+      announcement.created_at || existingById[announcement.announcement_id] || existingByBody[announcement.body] || now_(),
+    ]);
 
   if (!rows.length) {
     throw new Error('至少保留一則公告。');
@@ -574,9 +601,9 @@ function adminUpdateAnnouncements(announcementsJson) {
 
   const announcementsSheet = sheet_(SHEETS.ANNOUNCEMENTS);
   if (announcementsSheet.getLastRow() > 1) {
-    announcementsSheet.getRange(2, 1, announcementsSheet.getLastRow() - 1, 4).clearContent();
+    announcementsSheet.getRange(2, 1, announcementsSheet.getLastRow() - 1, 5).clearContent();
   }
-  announcementsSheet.getRange(2, 1, rows.length, 4).setValues(rows);
+  announcementsSheet.getRange(2, 1, rows.length, 5).setValues(rows);
   return adminSummary();
 }
 
@@ -795,6 +822,18 @@ function getOrCreateSheet_(ss, name, headers) {
     sheet.appendRow(headers);
   }
   return sheet;
+}
+
+function ensureSheetHeaders_(sheet, requiredHeaders) {
+  const current = sheet.getLastRow() > 0
+    ? sheet.getRange(1, 1, 1, Math.max(sheet.getLastColumn(), 1)).getValues()[0].map(String)
+    : [];
+  requiredHeaders.forEach((header) => {
+    if (!current.includes(header)) {
+      sheet.getRange(1, current.length + 1).setValue(header);
+      current.push(header);
+    }
+  });
 }
 
 function sheet_(name) {

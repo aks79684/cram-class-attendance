@@ -501,7 +501,7 @@
         `;
         return;
       }
-      const announcements = state.announcements.length ? state.announcements : (isConfigured() ? [] : DEFAULT_ANNOUNCEMENTS);
+      const announcements = sortAnnouncements(state.announcements.length ? state.announcements : (isConfigured() ? [] : DEFAULT_ANNOUNCEMENTS));
       board.innerHTML = `
         <div class="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -509,14 +509,41 @@
             <p class="mt-1 text-sm text-slate-500">&#35506;&#31243;&#33287;&#31995;&#32113;&#20351;&#29992;&#25552;&#37266;</p>
           </div>
         </div>
-        <ul class="mt-4 space-y-2">
+        <ul class="mt-4 max-h-56 space-y-2 overflow-y-auto pr-1">
           ${announcements.length ? announcements.map((announcement) => `
-            <li class="whitespace-pre-line rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-950">
+            <li class="relative whitespace-pre-line rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 pr-14 text-sm leading-6 text-amber-950">
+              ${isNewAnnouncement(announcement) ? '<span class="absolute right-2 top-2 rounded bg-rose-600 px-2 py-0.5 text-[10px] font-bold tracking-wide text-white">NEW</span>' : ''}
               ${escapeHtml(announcement.body || '')}
             </li>
           `).join('') : '<li class="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-sm leading-6 text-amber-950">&#30446;&#21069;&#27794;&#26377;&#20844;&#21578;&#12290;</li>'}
         </ul>
       `;
+    }
+
+    function sortAnnouncements(announcements) {
+      return [...(announcements || [])].sort((a, b) => {
+        const aTime = announcementTimestamp(a);
+        const bTime = announcementTimestamp(b);
+        if (aTime && bTime) return bTime - aTime;
+        if (aTime) return -1;
+        if (bTime) return 1;
+        return Number(a.sort_order || 0) - Number(b.sort_order || 0);
+      });
+    }
+
+    function isNewAnnouncement(announcement) {
+      const createdAt = announcementTimestamp(announcement);
+      if (!createdAt) return false;
+      const age = Date.now() - createdAt;
+      return age >= 0 && age <= 3 * 24 * 60 * 60 * 1000;
+    }
+
+    function announcementTimestamp(announcement) {
+      const value = String((announcement && announcement.created_at) || '').trim();
+      if (!value) return 0;
+      const normalized = value.includes('T') ? value : `${value.replace(' ', 'T')}+08:00`;
+      const time = new Date(normalized).getTime();
+      return Number.isFinite(time) ? time : 0;
     }
 
     function isMobileMode() {
@@ -1496,8 +1523,8 @@
 
     function renderAnnouncementPanel() {
       const announcements = state.adminData && Array.isArray(state.adminData.announcements) && state.adminData.announcements.length
-        ? state.adminData.announcements
-        : state.announcements;
+        ? sortAnnouncements(state.adminData.announcements)
+        : sortAnnouncements(state.announcements);
       $('announcementPanel').innerHTML = `
         <div class="flex flex-col gap-4">
           <div>
@@ -1523,7 +1550,7 @@
         const fields = $('announcementFields');
         const count = fields.querySelectorAll('.announcement-row').length;
         if (count >= 10) return showToast('最多 10 則公告。', 'warning');
-        fields.insertAdjacentHTML('beforeend', announcementFieldHtml({ body: '' }, count));
+        fields.insertAdjacentHTML('afterbegin', announcementFieldHtml({ body: '', created_at: '' }, 0));
         bindAnnouncementRemoveButtons();
       });
       $('announcementForm').addEventListener('submit', saveAnnouncements);
@@ -1537,6 +1564,7 @@
             <p class="text-xs font-bold text-slate-500">公告 ${index + 1}</p>
             <button type="button" class="remove-announcement rounded bg-white px-2 py-1 text-xs font-bold text-rose-600 hover:bg-rose-50">刪除</button>
           </div>
+          <input class="announcement-created-at" type="hidden" value="${escapeAttr(announcement.created_at || '')}">
           <textarea class="announcement-body mt-2 min-h-[72px] w-full rounded-lg border border-slate-300 px-3 py-2 text-sm" placeholder="公告內容">${escapeHtml(announcement.body || '')}</textarea>
         </div>
       `;
@@ -1557,6 +1585,7 @@
       const announcements = Array.from(document.querySelectorAll('.announcement-row')).map((row, index) => ({
         announcement_id: String(index + 1),
         body: row.querySelector('.announcement-body').value.trim(),
+        created_at: row.querySelector('.announcement-created-at').value.trim(),
         visible: true,
         sort_order: index + 1,
       })).filter((announcement) => announcement.body);
