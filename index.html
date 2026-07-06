@@ -1463,6 +1463,9 @@
     }
 
     function generateScheduleImageDataUrl(sessions, month = 7) {
+      const svgUrl = generateScheduleSvgDataUrl(sessions, month);
+      if (svgUrl.length <= 45000) return svgUrl;
+
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('\u7121\u6cd5\u7522\u751f\u5716\u7247');
@@ -1491,6 +1494,108 @@
       }
 
       throw new Error('\u7522\u751f\u7684\u8ab2\u8868\u5716\u904e\u5927');
+    }
+
+    function generateScheduleSvgDataUrl(sessions, month = 7) {
+      const width = 1400;
+      const height = 760;
+      const padding = 42;
+      const titleHeight = 88;
+      const headerHeight = 46;
+      const gridX = padding;
+      const gridY = padding + titleHeight;
+      const gridW = width - padding * 2;
+      const gridH = height - gridY - padding;
+      const cellW = gridW / 7;
+      const cellH = (gridH - headerHeight) / 5;
+      const byDate = scheduleSessionsByDate(sessions, month);
+      const days = generateCalendarGrid(DEFAULT_YEAR, month);
+      const weekdayLabels = ['\u4e00', '\u4e8c', '\u4e09', '\u56db', '\u4e94', '\u516d', '\u65e5'];
+      const parts = [];
+
+      parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`);
+      parts.push('<rect width="100%" height="100%" fill="#fffaf5"/>');
+      parts.push(`<rect x="${padding / 2}" y="${padding / 2}" width="${width - padding}" height="${height - padding}" rx="18" fill="#f8fafc"/>`);
+      parts.push(`<text x="${padding}" y="${padding + 38}" font-family="Microsoft JhengHei,Noto Sans TC,sans-serif" font-size="48" font-weight="700" fill="#102033">${DEFAULT_YEAR}\u5e74 ${month}\u6708\u8ab2\u8868</text>`);
+      parts.push(`<text x="${padding}" y="${padding + 68}" font-family="Microsoft JhengHei,Noto Sans TC,sans-serif" font-size="18" font-weight="600" fill="#64748b">\u9996\u9801\u5feb\u53d6\u7248\uff0c\u5f8c\u53f0\u8ab2\u7a0b\u5132\u5b58\u5f8c\u81ea\u52d5\u66f4\u65b0</text>`);
+      parts.push(`<rect x="${gridX}" y="${gridY}" width="${gridW}" height="${headerHeight}" rx="8" fill="#d7f2e5"/>`);
+
+      weekdayLabels.forEach((day, index) => {
+        const x = gridX + cellW * index + cellW / 2;
+        const fill = index >= 5 ? '#b91c1c' : '#166534';
+        parts.push(`<text x="${x}" y="${gridY + 30}" text-anchor="middle" font-family="Microsoft JhengHei,Noto Sans TC,sans-serif" font-size="22" font-weight="700" fill="${fill}">${day}</text>`);
+      });
+
+      parts.push(`<rect x="${gridX}" y="${gridY}" width="${gridW}" height="${headerHeight + cellH * 5}" fill="none" stroke="#1f2937" stroke-width="2"/>`);
+      for (let col = 1; col < 7; col += 1) {
+        const x = gridX + cellW * col;
+        parts.push(`<line x1="${x}" y1="${gridY}" x2="${x}" y2="${gridY + headerHeight + cellH * 5}" stroke="#1f2937" stroke-width="2"/>`);
+      }
+      for (let row = 0; row <= 5; row += 1) {
+        const y = gridY + headerHeight + cellH * row;
+        parts.push(`<line x1="${gridX}" y1="${y}" x2="${gridX + gridW}" y2="${y}" stroke="#1f2937" stroke-width="2"/>`);
+      }
+
+      days.slice(0, 35).forEach((day, index) => {
+        if (!day) return;
+        const col = index % 7;
+        const row = Math.floor(index / 7);
+        const x = gridX + cellW * col;
+        const y = gridY + headerHeight + cellH * row;
+        const key = `${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
+        const daySlots = byDate[key] || { morning: [], afternoon: [] };
+        parts.push(`<text x="${x + 14}" y="${y + 38}" font-family="Microsoft JhengHei,Noto Sans TC,sans-serif" font-size="32" font-weight="700" fill="#0f172a">${day}</text>`);
+        parts.push(`<line x1="${x + 8}" y1="${y + cellH / 2}" x2="${x + cellW - 8}" y2="${y + cellH / 2}" stroke="#cbd5e1" stroke-width="1.4"/>`);
+        parts.push(scheduleSlotSvg(daySlots.morning, x, y + cellH * 0.09, cellW, cellH * 0.39));
+        parts.push(scheduleSlotSvg(daySlots.afternoon, x, y + cellH * 0.53, cellW, cellH * 0.39));
+      });
+
+      parts.push('</svg>');
+      return `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(parts.join(''))}`;
+    }
+
+    function scheduleSlotSvg(items, cellX, slotY, cellW, slotH) {
+      if (!items.length) return '';
+      const parts = [];
+      const itemGap = 4;
+      const itemX = cellX + 52;
+      const itemW = cellW - 62;
+      const itemH = Math.min((slotH - itemGap * (items.length - 1)) / items.length, slotH * 0.9);
+      items.slice(0, 2).forEach((item, index) => {
+        const boxY = slotY + index * (itemH + itemGap);
+        const style = scheduleItemSvgStyle(item);
+        parts.push(`<rect x="${itemX}" y="${boxY}" width="${itemW}" height="${itemH}" rx="8" fill="${style.fill}" stroke="${style.stroke}" stroke-width="2"/>`);
+        parts.push(svgWrappedText(item.label, itemX + 10, boxY + 20, itemW - 20, itemH, 18));
+      });
+      return parts.join('');
+    }
+
+    function scheduleItemSvgStyle(item) {
+      const isMarker = isInfoOnlySession(item);
+      if (item.type === 'national_exam') return { fill: '#fde68a', stroke: '#b45309' };
+      if (isMarker) return { fill: '#dbeafe', stroke: '#2563eb' };
+      return { fill: '#fde7d7', stroke: '#c2410c' };
+    }
+
+    function svgWrappedText(text, x, y, maxWidth, boxHeight, fontSize) {
+      const lineHeight = fontSize + 5;
+      const maxLines = boxHeight >= 50 ? 2 : 1;
+      const maxChars = Math.max(4, Math.floor(maxWidth / (fontSize * 0.92)));
+      const lines = wrapTextByChars(text, maxChars, maxLines);
+      const tspans = lines.map((line, index) => `<tspan x="${x}" dy="${index === 0 ? 0 : lineHeight}">${escapeXml(line)}</tspan>`).join('');
+      return `<text x="${x}" y="${y}" font-family="Microsoft JhengHei,Noto Sans TC,sans-serif" font-size="${fontSize}" font-weight="700" fill="#111827">${tspans}</text>`;
+    }
+
+    function wrapTextByChars(text, maxChars, maxLines) {
+      const chars = Array.from(String(text || ''));
+      const lines = [];
+      for (let index = 0; index < chars.length && lines.length < maxLines; index += maxChars) {
+        lines.push(chars.slice(index, index + maxChars).join(''));
+      }
+      if (chars.length > maxChars * maxLines && lines.length) {
+        lines[lines.length - 1] = `${lines[lines.length - 1].slice(0, Math.max(1, maxChars - 1))}\u2026`;
+      }
+      return lines;
     }
 
     function drawScheduleCanvas(ctx, width, height, sessions, month) {
