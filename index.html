@@ -482,8 +482,8 @@
       container.classList.toggle('hidden', card.visible === false);
       const hasImage = card.visible !== false && card.image_url;
       const imageHtml = hasImage
-        ? `<img src="${escapeAttr(card.image_url)}" alt="${escapeAttr(card.title || '首頁圖片')}" class="h-[360px] w-full object-contain bg-slate-50 sm:h-[430px]" loading="eager" decoding="async" fetchpriority="high" onerror="this.closest('[data-home-image-card]').classList.add('image-error')">`
-        : `<div class="flex h-[360px] w-full flex-col items-center justify-center gap-3 bg-slate-50 text-slate-400 sm:h-[430px]"><i class="fa-regular fa-image text-5xl"></i><p class="text-sm font-bold">尚未放置課表圖片</p></div>`;
+        ? `<img src="${escapeAttr(card.image_url)}" alt="${escapeAttr(card.title || '首頁圖片')}" class="h-[460px] w-full object-contain bg-slate-50 sm:h-[620px]" loading="eager" decoding="async" fetchpriority="high" onerror="this.closest('[data-home-image-card]').classList.add('image-error')">`
+        : `<div class="flex h-[460px] w-full flex-col items-center justify-center gap-3 bg-slate-50 text-slate-400 sm:h-[620px]"><i class="fa-regular fa-image text-5xl"></i><p class="text-sm font-bold">尚未放置課表圖片</p></div>`;
       const bodyHtml = card.title || card.body ? `
         <div class="p-4">
           ${card.title ? `<h3 class="text-base font-bold">${escapeHtml(card.title)}</h3>` : ''}
@@ -1498,9 +1498,9 @@
 
     function generateScheduleSvgDataUrl(sessions, month = 7) {
       const width = 1400;
-      const height = 760;
+      const height = 980;
       const padding = 42;
-      const titleHeight = 88;
+      const titleHeight = 76;
       const headerHeight = 46;
       const gridX = padding;
       const gridY = padding + titleHeight;
@@ -1516,8 +1516,8 @@
       parts.push(`<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`);
       parts.push('<rect width="100%" height="100%" fill="#fffaf5"/>');
       parts.push(`<rect x="${padding / 2}" y="${padding / 2}" width="${width - padding}" height="${height - padding}" rx="18" fill="#f8fafc"/>`);
-      parts.push(`<text x="${padding}" y="${padding + 38}" font-family="Microsoft JhengHei,Noto Sans TC,sans-serif" font-size="48" font-weight="700" fill="#102033">${DEFAULT_YEAR}\u5e74 ${month}\u6708\u8ab2\u8868</text>`);
-      parts.push(`<text x="${padding}" y="${padding + 68}" font-family="Microsoft JhengHei,Noto Sans TC,sans-serif" font-size="18" font-weight="600" fill="#64748b">\u9996\u9801\u5feb\u53d6\u7248\uff0c\u5f8c\u53f0\u8ab2\u7a0b\u5132\u5b58\u5f8c\u81ea\u52d5\u66f4\u65b0</text>`);
+      parts.push(`<text x="${padding}" y="${padding + 34}" font-family="Microsoft JhengHei,Noto Sans TC,sans-serif" font-size="46" font-weight="700" fill="#102033">${DEFAULT_YEAR}\u5e74 ${month}\u6708\u8ab2\u8868</text>`);
+      parts.push(`<text x="${padding}" y="${padding + 62}" font-family="Microsoft JhengHei,Noto Sans TC,sans-serif" font-size="17" font-weight="600" fill="#64748b">\u9996\u9801\u5feb\u53d6\u7248\uff0c\u5f8c\u53f0\u8ab2\u7a0b\u5132\u5b58\u5f8c\u81ea\u52d5\u66f4\u65b0</text>`);
       parts.push(`<rect x="${gridX}" y="${gridY}" width="${gridW}" height="${headerHeight}" rx="8" fill="#d7f2e5"/>`);
 
       weekdayLabels.forEach((day, index) => {
@@ -1544,10 +1544,10 @@
         const y = gridY + headerHeight + cellH * row;
         const key = `${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
         const daySlots = byDate[key] || { morning: [], afternoon: [] };
-        parts.push(`<text x="${x + 14}" y="${y + 38}" font-family="Microsoft JhengHei,Noto Sans TC,sans-serif" font-size="32" font-weight="700" fill="#0f172a">${day}</text>`);
+        parts.push(`<text x="${x + 14}" y="${y + 40}" font-family="Microsoft JhengHei,Noto Sans TC,sans-serif" font-size="34" font-weight="700" fill="#0f172a">${day}</text>`);
         parts.push(`<line x1="${x + 8}" y1="${y + cellH / 2}" x2="${x + cellW - 8}" y2="${y + cellH / 2}" stroke="#cbd5e1" stroke-width="1.4"/>`);
-        parts.push(scheduleSlotSvg(daySlots.morning, x, y + cellH * 0.09, cellW, cellH * 0.39));
-        parts.push(scheduleSlotSvg(daySlots.afternoon, x, y + cellH * 0.53, cellW, cellH * 0.39));
+        parts.push(scheduleSlotSvg(daySlots.morning, x, y + cellH * 0.08, cellW, cellH * 0.4));
+        parts.push(scheduleSlotSvg(daySlots.afternoon, x, y + cellH * 0.53, cellW, cellH * 0.4));
       });
 
       parts.push('</svg>');
@@ -1557,15 +1557,15 @@
     function scheduleSlotSvg(items, cellX, slotY, cellW, slotH) {
       if (!items.length) return '';
       const parts = [];
-      const itemGap = 4;
-      const itemX = cellX + 52;
-      const itemW = cellW - 62;
+      const itemGap = 6;
+      const itemX = cellX + 48;
+      const itemW = cellW - 56;
       const itemH = Math.min((slotH - itemGap * (items.length - 1)) / items.length, slotH * 0.9);
       items.slice(0, 2).forEach((item, index) => {
         const boxY = slotY + index * (itemH + itemGap);
         const style = scheduleItemSvgStyle(item);
         parts.push(`<rect x="${itemX}" y="${boxY}" width="${itemW}" height="${itemH}" rx="8" fill="${style.fill}" stroke="${style.stroke}" stroke-width="2"/>`);
-        parts.push(svgWrappedText(item.label, itemX + 10, boxY + 20, itemW - 20, itemH, 18));
+        parts.push(svgWrappedText(item.label, itemX + 11, boxY + 22, itemW - 22, itemH, 18));
       });
       return parts.join('');
     }
@@ -1579,7 +1579,7 @@
 
     function svgWrappedText(text, x, y, maxWidth, boxHeight, fontSize) {
       const lineHeight = fontSize + 5;
-      const maxLines = boxHeight >= 50 ? 2 : 1;
+      const maxLines = boxHeight >= 76 ? 3 : boxHeight >= 50 ? 2 : 1;
       const maxChars = Math.max(4, Math.floor(maxWidth / (fontSize * 0.92)));
       const lines = wrapTextByChars(text, maxChars, maxLines);
       const tspans = lines.map((line, index) => `<tspan x="${x}" dy="${index === 0 ? 0 : lineHeight}">${escapeXml(line)}</tspan>`).join('');
@@ -1759,6 +1759,7 @@
       return String(value || '')
         .replace(/\s+/g, '')
         .replace(/^\u4e0a\u5348|^\u4e0b\u5348|^AM|^PM/gi, '')
+        .replace(/^[\-–—:：/／]+/, '')
         .trim();
     }
 
