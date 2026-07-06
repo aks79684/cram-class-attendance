@@ -1552,7 +1552,7 @@
         const x = gridX + cellW * col;
         const y = gridY + headerHeight + cellH * row;
         const key = `${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
-        const daySessions = byDate[key] || [];
+        const daySlots = byDate[key] || { morning: [], afternoon: [] };
 
         ctx.fillStyle = '#0f172a';
         ctx.font = `700 ${Math.round(width * 0.022)}px "Microsoft JhengHei", "Noto Sans TC", sans-serif`;
@@ -1560,37 +1560,12 @@
         ctx.textBaseline = 'top';
         ctx.fillText(String(day), x + cellW * 0.08, y + cellH * 0.1);
 
-        if (!daySessions.length) return;
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = Math.max(1, Math.round(width * 0.0008));
+        line(ctx, x + cellW * 0.06, y + cellH * 0.5, x + cellW * 0.94, y + cellH * 0.5);
 
-        const itemGap = Math.max(3, Math.round(width * 0.004));
-        const itemX = x + cellW * 0.22;
-        const itemW = cellW * 0.7;
-        const itemY = y + cellH * 0.11;
-        const itemH = Math.min(cellH * 0.78 / daySessions.length - itemGap, cellH * 0.34);
-
-        daySessions.slice(0, 3).forEach((session, sessionIndex) => {
-          const boxY = itemY + sessionIndex * (itemH + itemGap);
-          const isMarker = isInfoOnlySession(session);
-          const isExam = session.type === 'national_exam';
-          ctx.fillStyle = isExam ? '#fde68a' : isMarker ? '#dbeafe' : '#fde7d7';
-          ctx.strokeStyle = isExam ? '#b45309' : isMarker ? '#2563eb' : '#c2410c';
-          ctx.lineWidth = Math.max(1, Math.round(width * 0.001));
-          roundedRect(ctx, itemX, boxY, itemW, itemH, Math.round(width * 0.006));
-          ctx.fill();
-          ctx.stroke();
-
-          ctx.fillStyle = '#111827';
-          ctx.font = `700 ${Math.round(width * 0.015)}px "Microsoft JhengHei", "Noto Sans TC", sans-serif`;
-          ctx.textAlign = 'left';
-          ctx.textBaseline = 'top';
-          drawWrappedText(ctx, cleanScheduleLabel(session.subject), itemX + itemW * 0.05, boxY + itemH * 0.12, itemW * 0.9, Math.round(width * 0.019), itemH > cellH * 0.24 ? 2 : 1);
-
-          if (session.time && itemH > cellH * 0.25) {
-            ctx.fillStyle = '#64748b';
-            ctx.font = `600 ${Math.round(width * 0.011)}px "Microsoft JhengHei", "Noto Sans TC", sans-serif`;
-            ctx.fillText(String(session.time), itemX + itemW * 0.05, boxY + itemH * 0.68);
-          }
-        });
+        drawScheduleSlot(ctx, daySlots.morning, x, y + cellH * 0.12, cellW, cellH * 0.36, width);
+        drawScheduleSlot(ctx, daySlots.afternoon, x, y + cellH * 0.54, cellW, cellH * 0.36, width);
       });
     }
 
@@ -1601,27 +1576,109 @@
         if (session.visible === false || session.visible === 'false') return;
         const key = normalizeSessionKey(session.session_key || sessionKeyFromDate(session.date));
         if (!/^\d{4}$/.test(key)) return;
-        byDate[key] = byDate[key] || [];
-        byDate[key].push(session);
+        addSessionToScheduleSlots(byDate, key, session);
       });
 
       Object.keys(SPECIAL_MARKER_SESSIONS).forEach((key) => {
         const marker = SPECIAL_MARKER_SESSIONS[key];
         if (monthFromSession(marker) !== month) return;
-        byDate[key] = byDate[key] || [];
-        if (!byDate[key].some((session) => normalizeSessionKey(session.session_key) === key && isInfoOnlySession(session))) {
-          byDate[key].push(Object.assign({}, marker));
+        const slots = byDate[key] || { morning: [], afternoon: [] };
+        const hasMarker = [...slots.morning, ...slots.afternoon].some((session) => normalizeSessionKey(session.session_key) === key && isInfoOnlySession(session));
+        if (!hasMarker) {
+          addSessionToScheduleSlots(byDate, key, Object.assign({}, marker));
         }
       });
 
       Object.keys(byDate).forEach((key) => {
-        byDate[key].sort((a, b) => String(a.time || '').localeCompare(String(b.time || ''), 'zh-Hant-TW'));
+        byDate[key].morning.sort((a, b) => String(a.sortText || '').localeCompare(String(b.sortText || ''), 'zh-Hant-TW'));
+        byDate[key].afternoon.sort((a, b) => String(a.sortText || '').localeCompare(String(b.sortText || ''), 'zh-Hant-TW'));
       });
       return byDate;
     }
 
+    function addSessionToScheduleSlots(byDate, key, session) {
+      byDate[key] = byDate[key] || { morning: [], afternoon: [] };
+      scheduleSlotItems(session).forEach((item) => {
+        byDate[key][item.period].push(item);
+      });
+    }
+
+    function scheduleSlotItems(session) {
+      const time = String(session.time || '');
+      const subjectParts = splitScheduleParts(session.subject);
+      const teacherParts = splitScheduleParts(session.teacher);
+      const hasExplicitSplit = /AM|PM|上午|下午/i.test(time) && (subjectParts.length > 1 || teacherParts.length > 1 || /\/|&/.test(time));
+      const isFullDay = /全天|整天|09\s*:\s*00\s*-\s*16\s*:\s*00|9\s*:\s*00\s*-\s*16\s*:\s*00/.test(time);
+      const hasMorning = /上午|AM|08\s*:|8\s*:|09\s*:|9\s*:|10\s*:|11\s*:|12\s*:/i.test(time);
+      const hasAfternoon = /下午|PM|13\s*:|14\s*:|15\s*:|16\s*:/i.test(time);
+      const first = scheduleSlotItem(session, subjectParts[0], teacherParts[0], 'morning');
+      const second = scheduleSlotItem(session, subjectParts[1] || subjectParts[0], teacherParts[1] || teacherParts[0], 'afternoon');
+
+      if (hasExplicitSplit) return [first, second];
+      if (isFullDay || (hasMorning && hasAfternoon) || (!hasMorning && !hasAfternoon)) return [first, second];
+      if (hasAfternoon) return [second];
+      return [first];
+    }
+
+    function scheduleSlotItem(session, subject, teacher, period) {
+      const normalizedSubject = cleanScheduleLabel(subject || session.subject);
+      const surname = teacherSurname(teacher || session.teacher);
+      const alreadyTagged = surname && (normalizedSubject.includes(`(${surname})`) || normalizedSubject.includes(`（${surname}）`));
+      return {
+        period,
+        label: surname && !alreadyTagged ? `${normalizedSubject}(${surname})` : normalizedSubject,
+        type: session.type,
+        session_key: session.session_key,
+        attendance_required: session.attendance_required,
+        special_highlight: session.special_highlight,
+        sortText: `${session.time || ''} ${normalizedSubject}`,
+      };
+    }
+
+    function splitScheduleParts(value) {
+      const parts = String(value || '')
+        .split(/\s*(?:&|＆|\/|／|\+|、)\s*/g)
+        .map((part) => cleanScheduleLabel(part))
+        .filter(Boolean);
+      return parts.length ? parts : [cleanScheduleLabel(value)];
+    }
+
+    function teacherSurname(value) {
+      const text = String(value || '').replace(/\([^)]*\)|（[^）]*）/g, '').trim();
+      const match = text.match(/[\u3400-\u9fff]/);
+      return match ? match[0] : '';
+    }
+
     function cleanScheduleLabel(value) {
-      return String(value || '').replace(/\s+/g, '').trim();
+      return String(value || '')
+        .replace(/\s+/g, '')
+        .replace(/^\u4e0a\u5348|^\u4e0b\u5348|^AM|^PM/gi, '')
+        .trim();
+    }
+
+    function drawScheduleSlot(ctx, items, cellX, slotY, cellW, slotH, width) {
+      if (!items.length) return;
+      const itemGap = Math.max(2, Math.round(width * 0.002));
+      const itemX = cellX + cellW * 0.2;
+      const itemW = cellW * 0.74;
+      const itemH = Math.min((slotH - itemGap * (items.length - 1)) / items.length, slotH * 0.9);
+      items.slice(0, 2).forEach((item, index) => {
+        const boxY = slotY + index * (itemH + itemGap);
+        const isMarker = isInfoOnlySession(item);
+        const isExam = item.type === 'national_exam';
+        ctx.fillStyle = isExam ? '#fde68a' : isMarker ? '#dbeafe' : '#fde7d7';
+        ctx.strokeStyle = isExam ? '#b45309' : isMarker ? '#2563eb' : '#c2410c';
+        ctx.lineWidth = Math.max(1, Math.round(width * 0.001));
+        roundedRect(ctx, itemX, boxY, itemW, itemH, Math.round(width * 0.005));
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = '#111827';
+        ctx.font = `700 ${Math.round(width * 0.014)}px "Microsoft JhengHei", "Noto Sans TC", sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        drawWrappedText(ctx, item.label, itemX + itemW * 0.06, boxY + itemH * 0.18, itemW * 0.88, Math.round(width * 0.017), itemH > slotH * 0.55 ? 2 : 1);
+      });
     }
 
     function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
