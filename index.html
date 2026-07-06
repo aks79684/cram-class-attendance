@@ -1468,10 +1468,14 @@
       if (!ctx) throw new Error('\u7121\u6cd5\u7522\u751f\u5716\u7247');
 
       const attempts = [
-        { width: 1200, quality: 0.74 },
-        { width: 1040, quality: 0.66 },
-        { width: 900, quality: 0.56 },
-        { width: 780, quality: 0.48 },
+        { width: 1040, quality: 0.62 },
+        { width: 900, quality: 0.54 },
+        { width: 760, quality: 0.46 },
+        { width: 640, quality: 0.38 },
+        { width: 560, quality: 0.32 },
+        { width: 480, quality: 0.26 },
+        { width: 420, quality: 0.22 },
+        { width: 360, quality: 0.18 },
       ];
 
       for (const attempt of attempts) {
@@ -1479,11 +1483,11 @@
         canvas.height = Math.round(attempt.width / 1.846);
         drawScheduleCanvas(ctx, canvas.width, canvas.height, sessions, month);
 
-        const webpUrl = canvas.toDataURL('image/webp', attempt.quality);
-        if (webpUrl.startsWith('data:image/webp') && webpUrl.length <= 45000) return webpUrl;
-
         const jpegUrl = canvas.toDataURL('image/jpeg', attempt.quality);
         if (jpegUrl.length <= 45000) return jpegUrl;
+
+        const webpUrl = canvas.toDataURL('image/webp', attempt.quality);
+        if (webpUrl.startsWith('data:image/webp') && webpUrl.length <= 45000) return webpUrl;
       }
 
       throw new Error('\u7522\u751f\u7684\u8ab2\u8868\u5716\u904e\u5927');
@@ -1506,10 +1510,7 @@
       ctx.fillStyle = '#fffaf5';
       ctx.fillRect(0, 0, width, height);
 
-      const gradient = ctx.createLinearGradient(0, 0, width, 0);
-      gradient.addColorStop(0, '#ecfeff');
-      gradient.addColorStop(1, '#fff7ed');
-      ctx.fillStyle = gradient;
+      ctx.fillStyle = '#f8fafc';
       roundedRect(ctx, padding * 0.5, padding * 0.5, width - padding, height - padding, Math.round(width * 0.018));
       ctx.fill();
 
