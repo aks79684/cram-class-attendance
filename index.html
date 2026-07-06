@@ -1387,6 +1387,237 @@
       });
     }
 
+    async function autoUpdateHomeScheduleImage(sessions) {
+      const imageUrl = generateScheduleImageDataUrl(sessions, 7);
+      const card = {
+        title: '\u8ab2\u8868',
+        body: '\u9ede\u9078\u5716\u7247\u53ef\u653e\u5927\u67e5\u770b\u3002',
+        image_url: imageUrl,
+        link_url: '',
+        visible: true,
+      };
+
+      await postToAppsScript('adminUpdateHomeImageCard', {
+        password: state.adminPassword,
+        card: JSON.stringify(card),
+      });
+
+      state.homeImageCard = normalizeHomeImageCard(card);
+      state.adminData = Object.assign({}, state.adminData || {}, { homeImageCard: state.homeImageCard });
+      renderHomeImageCard();
+      renderHomeImagePanel();
+      return state.homeImageCard;
+    }
+
+    function generateScheduleImageDataUrl(sessions, month = 7) {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('\u7121\u6cd5\u7522\u751f\u5716\u7247');
+
+      const attempts = [
+        { width: 1200, quality: 0.74 },
+        { width: 1040, quality: 0.66 },
+        { width: 900, quality: 0.56 },
+        { width: 780, quality: 0.48 },
+      ];
+
+      for (const attempt of attempts) {
+        canvas.width = attempt.width;
+        canvas.height = Math.round(attempt.width / 1.846);
+        drawScheduleCanvas(ctx, canvas.width, canvas.height, sessions, month);
+
+        const webpUrl = canvas.toDataURL('image/webp', attempt.quality);
+        if (webpUrl.startsWith('data:image/webp') && webpUrl.length <= 45000) return webpUrl;
+
+        const jpegUrl = canvas.toDataURL('image/jpeg', attempt.quality);
+        if (jpegUrl.length <= 45000) return jpegUrl;
+      }
+
+      throw new Error('\u7522\u751f\u7684\u8ab2\u8868\u5716\u904e\u5927');
+    }
+
+    function drawScheduleCanvas(ctx, width, height, sessions, month) {
+      const padding = Math.round(width * 0.035);
+      const titleHeight = Math.round(height * 0.13);
+      const headerHeight = Math.round(height * 0.075);
+      const gridX = padding;
+      const gridY = padding + titleHeight;
+      const gridW = width - padding * 2;
+      const gridH = height - gridY - padding;
+      const cellW = gridW / 7;
+      const cellH = (gridH - headerHeight) / 5;
+      const byDate = scheduleSessionsByDate(sessions, month);
+      const days = generateCalendarGrid(DEFAULT_YEAR, month);
+
+      ctx.clearRect(0, 0, width, height);
+      ctx.fillStyle = '#fffaf5';
+      ctx.fillRect(0, 0, width, height);
+
+      const gradient = ctx.createLinearGradient(0, 0, width, 0);
+      gradient.addColorStop(0, '#ecfeff');
+      gradient.addColorStop(1, '#fff7ed');
+      ctx.fillStyle = gradient;
+      roundedRect(ctx, padding * 0.5, padding * 0.5, width - padding, height - padding, Math.round(width * 0.018));
+      ctx.fill();
+
+      ctx.fillStyle = '#102033';
+      ctx.font = `700 ${Math.round(width * 0.036)}px "Microsoft JhengHei", "Noto Sans TC", sans-serif`;
+      ctx.textBaseline = 'middle';
+      ctx.fillText(`${DEFAULT_YEAR}\u5e74 ${month}\u6708\u8ab2\u8868`, padding, padding + titleHeight * 0.36);
+      ctx.font = `600 ${Math.round(width * 0.014)}px "Microsoft JhengHei", "Noto Sans TC", sans-serif`;
+      ctx.fillStyle = '#64748b';
+      ctx.fillText('\u9996\u9801\u5feb\u53d6\u7248\uff0c\u5f8c\u53f0\u8ab2\u7a0b\u5132\u5b58\u5f8c\u81ea\u52d5\u66f4\u65b0', padding, padding + titleHeight * 0.75);
+
+      ctx.fillStyle = '#d7f2e5';
+      roundedRect(ctx, gridX, gridY, gridW, headerHeight, Math.round(width * 0.008));
+      ctx.fill();
+
+      const weekdayLabels = ['\u4e00', '\u4e8c', '\u4e09', '\u56db', '\u4e94', '\u516d', '\u65e5'];
+      ctx.font = `700 ${Math.round(width * 0.017)}px "Microsoft JhengHei", "Noto Sans TC", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      weekdayLabels.forEach((day, index) => {
+        ctx.fillStyle = index >= 5 ? '#b91c1c' : '#166534';
+        ctx.fillText(day, gridX + cellW * index + cellW / 2, gridY + headerHeight / 2);
+      });
+
+      ctx.strokeStyle = '#1f2937';
+      ctx.lineWidth = Math.max(1, Math.round(width * 0.0015));
+      ctx.strokeRect(gridX, gridY, gridW, headerHeight + cellH * 5);
+      for (let col = 1; col < 7; col += 1) {
+        line(ctx, gridX + cellW * col, gridY, gridX + cellW * col, gridY + headerHeight + cellH * 5);
+      }
+      for (let row = 0; row <= 5; row += 1) {
+        const y = gridY + headerHeight + cellH * row;
+        line(ctx, gridX, y, gridX + gridW, y);
+      }
+
+      days.slice(0, 35).forEach((day, index) => {
+        if (!day) return;
+        const col = index % 7;
+        const row = Math.floor(index / 7);
+        const x = gridX + cellW * col;
+        const y = gridY + headerHeight + cellH * row;
+        const key = `${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
+        const daySessions = byDate[key] || [];
+
+        ctx.fillStyle = '#0f172a';
+        ctx.font = `700 ${Math.round(width * 0.022)}px "Microsoft JhengHei", "Noto Sans TC", sans-serif`;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText(String(day), x + cellW * 0.08, y + cellH * 0.1);
+
+        if (!daySessions.length) return;
+
+        const itemGap = Math.max(3, Math.round(width * 0.004));
+        const itemX = x + cellW * 0.22;
+        const itemW = cellW * 0.7;
+        const itemY = y + cellH * 0.11;
+        const itemH = Math.min(cellH * 0.78 / daySessions.length - itemGap, cellH * 0.34);
+
+        daySessions.slice(0, 3).forEach((session, sessionIndex) => {
+          const boxY = itemY + sessionIndex * (itemH + itemGap);
+          const isMarker = isInfoOnlySession(session);
+          const isExam = session.type === 'national_exam';
+          ctx.fillStyle = isExam ? '#fde68a' : isMarker ? '#dbeafe' : '#fde7d7';
+          ctx.strokeStyle = isExam ? '#b45309' : isMarker ? '#2563eb' : '#c2410c';
+          ctx.lineWidth = Math.max(1, Math.round(width * 0.001));
+          roundedRect(ctx, itemX, boxY, itemW, itemH, Math.round(width * 0.006));
+          ctx.fill();
+          ctx.stroke();
+
+          ctx.fillStyle = '#111827';
+          ctx.font = `700 ${Math.round(width * 0.015)}px "Microsoft JhengHei", "Noto Sans TC", sans-serif`;
+          ctx.textAlign = 'left';
+          ctx.textBaseline = 'top';
+          drawWrappedText(ctx, cleanScheduleLabel(session.subject), itemX + itemW * 0.05, boxY + itemH * 0.12, itemW * 0.9, Math.round(width * 0.019), itemH > cellH * 0.24 ? 2 : 1);
+
+          if (session.time && itemH > cellH * 0.25) {
+            ctx.fillStyle = '#64748b';
+            ctx.font = `600 ${Math.round(width * 0.011)}px "Microsoft JhengHei", "Noto Sans TC", sans-serif`;
+            ctx.fillText(String(session.time), itemX + itemW * 0.05, boxY + itemH * 0.68);
+          }
+        });
+      });
+    }
+
+    function scheduleSessionsByDate(sessions, month) {
+      const byDate = {};
+      (sessions || []).forEach((session) => {
+        if (!session || monthFromSession(session) !== month) return;
+        if (session.visible === false || session.visible === 'false') return;
+        const key = normalizeSessionKey(session.session_key || sessionKeyFromDate(session.date));
+        if (!/^\d{4}$/.test(key)) return;
+        byDate[key] = byDate[key] || [];
+        byDate[key].push(session);
+      });
+
+      Object.keys(SPECIAL_MARKER_SESSIONS).forEach((key) => {
+        const marker = SPECIAL_MARKER_SESSIONS[key];
+        if (monthFromSession(marker) !== month) return;
+        byDate[key] = byDate[key] || [];
+        if (!byDate[key].some((session) => normalizeSessionKey(session.session_key) === key && isInfoOnlySession(session))) {
+          byDate[key].push(Object.assign({}, marker));
+        }
+      });
+
+      Object.keys(byDate).forEach((key) => {
+        byDate[key].sort((a, b) => String(a.time || '').localeCompare(String(b.time || ''), 'zh-Hant-TW'));
+      });
+      return byDate;
+    }
+
+    function cleanScheduleLabel(value) {
+      return String(value || '').replace(/\s+/g, '').trim();
+    }
+
+    function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines) {
+      const chars = Array.from(String(text || ''));
+      let lineText = '';
+      let lines = [];
+      chars.forEach((char) => {
+        const testLine = `${lineText}${char}`;
+        if (lineText && ctx.measureText(testLine).width > maxWidth) {
+          lines.push(lineText);
+          lineText = char;
+        } else {
+          lineText = testLine;
+        }
+      });
+      if (lineText) lines.push(lineText);
+      if (lines.length > maxLines) {
+        lines = lines.slice(0, maxLines);
+        let last = lines[lines.length - 1];
+        while (last.length > 1 && ctx.measureText(`${last}\u2026`).width > maxWidth) {
+          last = last.slice(0, -1);
+        }
+        lines[lines.length - 1] = `${last}\u2026`;
+      }
+      lines.forEach((line, index) => ctx.fillText(line, x, y + lineHeight * index));
+    }
+
+    function roundedRect(ctx, x, y, width, height, radius) {
+      const r = Math.min(radius, width / 2, height / 2);
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + width - r, y);
+      ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+      ctx.lineTo(x + width, y + height - r);
+      ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+      ctx.lineTo(x + r, y + height);
+      ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+      ctx.lineTo(x, y + r);
+      ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    function line(ctx, x1, y1, x2, y2) {
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
     function postToAppsScript(action, params = {}) {
       return new Promise((resolve, reject) => {
         showLoading();
@@ -1854,7 +2085,13 @@
         renderAdminCalendar();
         renderAttendanceCategoryPanel();
         renderAdminSummary();
-        showToast('課程資料已更新。');
+        try {
+          await autoUpdateHomeScheduleImage(response.sessions || []);
+        } catch (imageError) {
+          showToast(`\u8ab2\u7a0b\u5df2\u66f4\u65b0\uff0c\u9996\u9801\u8ab2\u8868\u5716\u672a\u66f4\u65b0\uff1a${imageError.message}`, 'warning');
+          return;
+        }
+        showToast('\u8ab2\u7a0b\u8cc7\u6599\u5df2\u66f4\u65b0\uff0c\u9996\u9801\u8ab2\u8868\u5716\u5df2\u540c\u6b65\u3002');
       } catch (error) {
         showToast(error.message, 'warning');
       }
