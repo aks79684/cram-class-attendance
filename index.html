@@ -213,6 +213,11 @@
       link_url: '',
       visible: true,
     };
+    const HOME_IMAGE_CACHE_KEY = 'cramAttendance.latestHomeImageCard';
+    const STATIC_HOME_IMAGE_URLS = [
+      'assets/schedule-web.webp',
+      'assets/schedule-web-20260703.webp',
+    ];
     const DEFAULT_ANNOUNCEMENTS = [
       { announcement_id: '1', body: '請同學完成出席填寫，方便老師統計人數與準備教室。' },
       { announcement_id: '2', body: '課表若有異動，會以老師公告及系統內容為準。' },
@@ -240,7 +245,7 @@
       selectedAdminDate: '',
       homeMessages: DEFAULT_HOME_MESSAGES,
       announcements: [],
-      homeImageCard: DEFAULT_HOME_IMAGE_CARD,
+      homeImageCard: readCachedHomeImageCard() || DEFAULT_HOME_IMAGE_CARD,
       announcementsLoaded: false,
       activeHomeMessage: 0,
       homeMessageTimer: null,
@@ -354,8 +359,7 @@
           state.announcements = response.announcements;
         }
         if (response && response.homeImageCard) {
-          state.homeImageCard = normalizeHomeImageCard(response.homeImageCard);
-          renderHomeImageCard();
+          applyRemoteHomeImageCard(response.homeImageCard);
         }
         state.announcementsLoaded = true;
         renderAnnouncementBoard();
@@ -405,6 +409,57 @@
         state.activeHomeMessage = (state.activeHomeMessage + 1) % messages.length;
         renderHomeMessages();
       }, 5000);
+    }
+
+    function isStaticHomeImageUrl(imageUrl) {
+      const url = String(imageUrl || '').trim();
+      return STATIC_HOME_IMAGE_URLS.includes(url);
+    }
+
+    function hasFreshHomeImage(card) {
+      return Boolean(card && card.image_url && !isStaticHomeImageUrl(card.image_url));
+    }
+
+    function readCachedHomeImageCard() {
+      try {
+        const cached = JSON.parse(window.localStorage.getItem(HOME_IMAGE_CACHE_KEY) || 'null');
+        return hasFreshHomeImage(cached) ? normalizeHomeImageCard(cached) : null;
+      } catch (error) {
+        return null;
+      }
+    }
+
+    function cacheHomeImageCard(card) {
+      if (!hasFreshHomeImage(card)) return;
+      try {
+        window.localStorage.setItem(HOME_IMAGE_CACHE_KEY, JSON.stringify(card));
+      } catch (error) {
+        // Cache is only a speed/fallback helper; ignore storage failures.
+      }
+    }
+
+    function remoteHomeImageCardToApply(card) {
+      if (!card) return null;
+      const normalized = normalizeHomeImageCard(card);
+      if (hasFreshHomeImage(normalized)) return normalized;
+      return null;
+    }
+
+    function applyHomeImageCard(card) {
+      const nextCard = normalizeHomeImageCard(card);
+      state.homeImageCard = nextCard;
+      cacheHomeImageCard(nextCard);
+      renderHomeImageCard();
+      return nextCard;
+    }
+
+    function applyRemoteHomeImageCard(card) {
+      const remoteCard = remoteHomeImageCardToApply(card);
+      if (!remoteCard) return false;
+      state.homeImageCard = remoteCard;
+      cacheHomeImageCard(remoteCard);
+      renderHomeImageCard();
+      return true;
     }
 
     function normalizeHomeImageCard(card) {
@@ -1153,11 +1208,7 @@
           renderAnnouncementBoard();
         }
         if (response && response.homeImageCard) {
-          const remoteCard = normalizeHomeImageCard(response.homeImageCard);
-          if (remoteCard.image_url) {
-            state.homeImageCard = remoteCard;
-            renderHomeImageCard();
-          }
+          applyRemoteHomeImageCard(response.homeImageCard);
         }
         const first = response.sessions[0];
         if (first && !state.selectedAdminDate) {
@@ -1242,7 +1293,10 @@
     }
 
     function renderHomeImagePanel() {
-      const card = normalizeHomeImageCard(state.adminData && state.adminData.homeImageCard ? state.adminData.homeImageCard : state.homeImageCard);
+      const remoteCard = state.adminData && state.adminData.homeImageCard
+        ? remoteHomeImageCardToApply(state.adminData.homeImageCard)
+        : null;
+      const card = normalizeHomeImageCard(remoteCard || state.homeImageCard);
       $('homeImagePanel').innerHTML = `
         <div class="flex flex-col gap-4">
           <div>
@@ -1321,17 +1375,15 @@
           card: JSON.stringify(card),
         });
         state.homeImageCard = normalizeHomeImageCard(card);
+        cacheHomeImageCard(state.homeImageCard);
         state.adminData = Object.assign({}, state.adminData || {}, { homeImageCard: state.homeImageCard });
         renderHomeImageCard();
         renderHomeImagePanel();
         await wait(1200);
         const response = await api('getHomeMessages', {}, { showOverlay: false });
-        const rawRemoteCard = response.homeImageCard || {};
-        const remoteCard = normalizeHomeImageCard(response.homeImageCard || {});
-        if (rawRemoteCard.image_url) {
+        const appliedRemoteCard = applyRemoteHomeImageCard(response.homeImageCard || {});
+        if (appliedRemoteCard) {
           state.adminData = Object.assign({}, state.adminData || {}, response);
-          state.homeImageCard = remoteCard;
-          renderHomeImageCard();
           renderHomeImagePanel();
           showToast('首頁圖片卡片已更新。');
         } else {
@@ -1403,6 +1455,7 @@
       });
 
       state.homeImageCard = normalizeHomeImageCard(card);
+      cacheHomeImageCard(state.homeImageCard);
       state.adminData = Object.assign({}, state.adminData || {}, { homeImageCard: state.homeImageCard });
       renderHomeImageCard();
       renderHomeImagePanel();
