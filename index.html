@@ -1558,8 +1558,8 @@
       if (!items.length) return '';
       const parts = [];
       const itemGap = 6;
-      const itemX = cellX + 48;
-      const itemW = cellW - 56;
+      const itemX = cellX + 68;
+      const itemW = cellW - 78;
       const itemH = Math.min((slotH - itemGap * (items.length - 1)) / items.length, slotH * 0.9);
       items.slice(0, 2).forEach((item, index) => {
         const boxY = slotY + index * (itemH + itemGap);
@@ -1756,11 +1756,15 @@
     }
 
     function cleanScheduleLabel(value) {
-      return String(value || '')
+      const text = String(value || '')
         .replace(/\s+/g, '')
         .replace(/^\u4e0a\u5348|^\u4e0b\u5348|^AM|^PM/gi, '')
+        .replace(/^(?:\u6574\u5929|\u5168\u5929\u73ed?)[\-–—:：/／]*/g, '')
         .replace(/^[\-–—:：/／]+/, '')
         .trim();
+      return text.includes('\u5168\u53e3\u7fa9\u9f52\u6392\u5217')
+        ? text.replace(/[\(（]\u8853\u79d1[\)）]/g, '')
+        : text;
     }
 
     function drawScheduleSlot(ctx, items, cellX, slotY, cellW, slotH, width) {
