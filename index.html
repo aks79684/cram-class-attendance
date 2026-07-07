@@ -48,14 +48,14 @@
     </div>
   </header>
 
-  <main class="safe-bottom mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-6">
+  <main class="safe-bottom mx-auto max-w-7xl px-3 py-4 sm:px-4 sm:py-6">
     <div id="configWarning" class="mb-5 hidden rounded-lg border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
       尚未設定 Apps Script 網址。請部署 <code>apps-script/Code.gs</code> 後，把 Web App URL 填入 <code>APPS_SCRIPT_URL</code>。
     </div>
 
-    <section class="mb-6 grid gap-4 md:grid-cols-[1fr_360px]">
+    <section class="mb-6 space-y-4">
       <div id="homeImageCard" class="overflow-hidden rounded-lg bg-white shadow-sm"></div>
-      <div class="grid gap-4">
+      <div class="grid gap-4 md:grid-cols-2">
         <div id="homeMessageCarousel" class="rounded-lg bg-white p-5 shadow-sm"></div>
         <div class="rounded-lg bg-slate-900 p-5 text-white shadow-sm">
         <p class="text-xs font-bold text-slate-400">今日</p>
@@ -482,7 +482,7 @@
       container.classList.toggle('hidden', card.visible === false);
       const hasImage = card.visible !== false && card.image_url;
       const imageHtml = hasImage
-        ? `<img src="${escapeAttr(card.image_url)}" alt="${escapeAttr(card.title || '首頁圖片')}" class="h-[460px] w-full object-contain bg-slate-50 sm:h-[620px]" loading="eager" decoding="async" fetchpriority="high" onerror="this.closest('[data-home-image-card]').classList.add('image-error')">`
+        ? `<img src="${escapeAttr(card.image_url)}" alt="${escapeAttr(card.title || '首頁圖片')}" class="w-full bg-slate-50" loading="eager" decoding="async" fetchpriority="high" onerror="this.closest('[data-home-image-card]').classList.add('image-error')">`
         : `<div class="flex h-[460px] w-full flex-col items-center justify-center gap-3 bg-slate-50 text-slate-400 sm:h-[620px]"><i class="fa-regular fa-image text-5xl"></i><p class="text-sm font-bold">尚未放置課表圖片</p></div>`;
       const bodyHtml = card.title || card.body ? `
         <div class="p-4">
