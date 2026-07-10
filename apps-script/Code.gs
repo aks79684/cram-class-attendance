@@ -70,27 +70,30 @@ const DEFAULT_SESSIONS = [
   ['0703', '07/03', '五', 'AM 固定義齒 / PM 牙體形雕', '固定義齒技術學 & 牙體形態雕刻', '薛亞銘 / 董國龍', 'tutoring', 'C205 / G703', '下午形雕課請帶紅色與藍色雕刻蠟塊。', true],
   ['0704', '07/04', '六', '上午 09:00-12:00', '口腔生理學', '陳竣鋒', 'tutoring', 'C205 正課教室', '', true],
   ['0705', '07/05', '日', '09:00-16:00', '在職專班第一次模擬考', '系上監考老師', 'exam', 'C205 / G703', '請準時於 08:45 前至 C205 教室簽到，遲到依國考規範處理。', true],
-  ['0706', '07/06', '一', 'AM 牙科陶瓷 / PM 全口義齒(朱)', '牙科陶瓷技術學 & 全口義齒排列', '林莉淳 / 朱柏霖', 'tutoring', 'C205 / G703', '', true],
-  ['0707', '07/07', '二', 'AM 牙科材料* / PM 牙體形雕(崧)', '牙科材料學* & 牙體形態雕刻', '陳慈徽 / 許洛菘', 'tutoring', 'C205 / G703', '', true],
+  ['0706', '07/06', '一', 'AM 牙體形雕 / PM 牙科陶瓷', '牙體形態雕刻 & 牙科陶瓷技術學', '許洛松 / 林莉淳', 'tutoring', 'C205 / G703', '', true],
+  ['0707', '07/07', '二', '全天班 (09:00-16:00)', '全口義齒排列', '朱柏霖', 'tutoring', 'G703 實作教室', '', true],
   ['0708', '07/08', '三', '視簡章規定時間', '聯合免試 (無常規課輔)', '全體自主行程', 'event', '校外/自主', '此日期只在月曆標記，不需要回覆參加 / 不參加。', true],
   ['0709', '07/09', '四', 'AM 兒童牙科 / PM 牙體形態學', '兒童牙科技術學 & 牙體形態學', '邱香婷 / 簡裕庭', 'tutoring', 'C205 正課教室', '', true],
   ['0711', '07/11', '六', '五專 & 在職 仿真模擬', '第一次仿真模擬考 (第一天)', '仿真考小組', 'exam', 'C205 / G703', '仿真全套學術科模擬，請著實驗衣並備齊所有器械。', true],
   ['0712', '07/12', '日', '五專 & 在職 仿真模擬', '第一次仿真模擬考 (第二天)', '仿真考小組', 'exam', 'C205 / G703', '', true],
   ['0713', '07/13', '一', '全天班 (09:00-16:00)', '牙科矯正技術學', '邱香婷', 'tutoring', 'C205 正課教室', '', true],
   ['0714', '07/14', '二', 'AM 牙體形雕(董) / PM 局部活動義齒', '牙體形態雕刻 & 局部活動義齒技術', '董國龍 / 謝承勛', 'tutoring', 'C205 / G703', '', true],
-  ['0715', '07/15', '三', '全天班 (09:00-16:00)', '全口義齒排列(術科)', '林聖傑 (傑)', 'tutoring', 'G703 實作教室', '', true],
+  ['0715', '07/15', '三', 'AM 全口義齒排列 / PM 考前事項宣達', '全口義齒排列 & 考前事項宣達*', '林聖傑 / 班級導師', 'tutoring', 'G703 / C205', '', true],
   ['0716', '07/16', '四', '全天班 (09:00-16:00)', '全口活動義齒技術學', '黃菁芳', 'tutoring', 'C205 正課教室', '', true],
   ['0718', '07/18', '六', '五專 & 在職 仿真模擬', '第二次仿真模擬考 (第一天)', '仿真考小組', 'exam', 'C205 / G703', '考前最後大模考，成績將作為最終衝刺評估指標！', true],
   ['0719', '07/19', '日', '五專 & 在職 仿真模擬', '第二次仿真模擬考 (第二天)', '仿真考小組', 'exam', 'C205 / G703', '', true],
   ['0720', '07/20', '一', 'AM 牙體形態 / PM 牙體形雕(崧)', '牙體形態學 & 牙體形態雕刻', '簡裕庭 / 許洛菘', 'tutoring', 'C205 / G703', '', true],
   ['0721', '07/21', '二', 'AM 牙科材料* / PM 牙技法規', '牙科材料學* & 牙技法規與倫理', '陳慈徽 / 張正君', 'tutoring', 'C205 正課教室', '', true],
-  ['0722', '07/22', '三', '全天班 (09:00-16:00)', '全口義齒排列(術科)', '朱柏霖 (朱)', 'tutoring', 'G703 實作教室', '', true],
-  ['0723', '07/23', '四', 'AM 考前事項宣達* / PM 祈福活動', '考前重要宣達事項 & 祈福大會', '班級導師 / 系主任', 'event', 'C205 / 祈福會場', '祈福大會備有包子與粽子，預祝大家金榜題名！', true],
+  ['0722', '07/22', '三', 'AM 全口義齒排列 / PM 牙技法規與倫理', '全口義齒排列 & 牙技法規與倫理', '朱柏霖 / 張正君', 'tutoring', 'G703 / C205', '', true],
+  ['0723', '07/23', '四', 'AM 牙科矯正技術學 / PM 牙科材料學*', '牙科矯正技術學 & 牙科材料學*', '邱音婷 / 陳慈徽', 'tutoring', 'C205 正課教室', '', true],
+  ['0724', '07/24', '五', '祈福活動', '祈福活動', '系上老師', 'event', '祈福會場', '祈福活動請同學穿著整齊，攜帶准考證影本與文具。', true],
   ['0725', '07/25', '六', '出發日 / 看考場', '北上國考 (交通與考場巡禮)', '帶隊老師', 'national_exam', '北部試區', '遊覽車將於上午 08:30 於校門口準時發車，請勿遲到。', true],
   ['0726', '07/26', '日', '正式考試 (第一天)', '牙體技術師國家考試 - 學科與術科', '考選部', 'national_exam', '考選部指定試場', '第 1 節：預備 8:40，考試 9:00-10:00，牙體技術學（一）\n第 2 節：預備 10:30，考試 10:40-11:40，牙體技術學（二）\n第 3 節：預備 12:50，考試 13:00-14:00，牙體技術學（三）\n第 4 節：預備 14:30，考試 14:40-15:40，牙體技術學（四）', true],
   ['0727', '07/27', '一', '正式考試 (第二天)', '牙體技術師國家考試 - 學科與術科', '考選部', 'national_exam', '考選部指定試場', '第 5 節：預備 8:40，考試 9:00-12:00，全口活動義齒排列\n第 6 節：預備 13:40，考試 14:00-15:00，牙體解剖形態雕刻', true],
   ['0728', '07/28', '二', '考後處理與討論', '返校疑議處理', '系上專業團隊', 'national_exam', '系辦公室', '對試題答案有疑慮者，請攜帶佐證資料到系辦公室填寫疑議表。', true],
 ];
+const SCHEDULE_PATCH_KEYS = ['0706', '0707', '0715', '0722', '0723', '0724'];
+const SCHEDULE_PATCH_SESSIONS = DEFAULT_SESSIONS.filter((row) => SCHEDULE_PATCH_KEYS.includes(row[0]));
 
 const DEFAULT_STUDENTS = [];
 // 預設測試學生名單已移除：新試算表只會建立欄位，不會自動產生測試學生。
@@ -193,6 +196,7 @@ function ensureSetup() {
   if (sessions.getLastRow() === 1) {
     sessions.getRange(2, 1, DEFAULT_SESSIONS.length, 10).setValues(DEFAULT_SESSIONS);
   }
+  upsertDefaultSessions_(sessions, SCHEDULE_PATCH_SESSIONS);
 
   if (messages.getLastRow() === 1) {
     messages.getRange(2, 1, DEFAULT_HOME_MESSAGES.length, 5).setValues(DEFAULT_HOME_MESSAGES);
@@ -832,6 +836,30 @@ function ensureSheetHeaders_(sheet, requiredHeaders) {
     if (!current.includes(header)) {
       sheet.getRange(1, current.length + 1).setValue(header);
       current.push(header);
+    }
+  });
+}
+
+function upsertDefaultSessions_(sheet, rows) {
+  if (!rows.length) return;
+  const values = sheet.getDataRange().getValues();
+  const headers = values[0].map(String);
+  const keyIndex = headers.indexOf('session_key');
+  if (keyIndex < 0) return;
+
+  const rowByKey = {};
+  for (let i = 1; i < values.length; i += 1) {
+    const key = normalizeKey_(values[i][keyIndex]);
+    if (key) rowByKey[key] = i + 1;
+  }
+
+  rows.forEach((row) => {
+    const key = normalizeKey_(row[0]);
+    const targetRow = rowByKey[key];
+    if (targetRow) {
+      sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
+    } else {
+      sheet.appendRow(row);
     }
   });
 }
